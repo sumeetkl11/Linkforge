@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle } from 'lucide-react';
+import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle, Copy, Check } from 'lucide-react';
 import { Channel, Message, User } from '../types';
 import { CHANNELS, INITIAL_MESSAGES, USERS } from '../data';
 import { fetchMessages, sendMessage, fetchChannels } from '../api';
@@ -27,6 +27,8 @@ export default function Chat({ currentUser }: ChatProps) {
   const [newChannelName, setNewChannelName] = useState('');
   const [isCreateDMModalOpen, setIsCreateDMModalOpen] = useState(false);
   const [selectedDMColleagueId, setSelectedDMColleagueId] = useState('');
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   
   // Active channel/DM specific messages state helper
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({});
@@ -196,9 +198,16 @@ export default function Chat({ currentUser }: ChatProps) {
   const handleStartDM = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDMColleagueId) return;
-
     handleSwitchChat('dm', selectedDMColleagueId);
     setIsCreateDMModalOpen(false);
+  };
+
+  const handleCopyInviteLink = () => {
+    const inviteLink = `${window.location.origin}?invite=syncforge-workspace`;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
+    });
   };
 
   const handleSwitchChat = (type: 'channel' | 'dm', chatId: string) => {
@@ -597,7 +606,10 @@ export default function Chat({ currentUser }: ChatProps) {
         <div className="p-4 bg-surface-container border-t border-outline-variant">
           <div className="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant flex flex-col gap-3">
             <p className="text-[11px] text-on-surface-variant leading-tight">Need to loop in another developer or reviewer? Invite them to the forge workspace.</p>
-            <button className="w-full py-1.5 text-[10px] uppercase font-bold tracking-wider bg-outline-variant/40 hover:bg-outline-variant/75 rounded transition-all text-on-surface cursor-pointer flex items-center justify-center gap-1.5">
+            <button 
+              onClick={() => setIsInviteModalOpen(true)}
+              className="w-full py-1.5 text-[10px] uppercase font-bold tracking-wider bg-outline-variant/40 hover:bg-outline-variant/75 rounded transition-all text-on-surface cursor-pointer flex items-center justify-center gap-1.5"
+            >
               <Sparkles size={11} className="text-primary" />
               <span>Invite Team Member</span>
             </button>

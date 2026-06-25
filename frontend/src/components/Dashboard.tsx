@@ -14,9 +14,10 @@ interface DashboardProps {
   activities: Activity[];
   onNavigateToTab: (tab: 'Dashboard' | 'Chat' | 'TaskBoard' | 'TeamDirectory') => void;
   onSelectTask: (taskId: string) => void;
+  searchVal?: string;
 }
 
-export default function Dashboard({ tasks, activities, onNavigateToTab, onSelectTask }: DashboardProps) {
+export default function Dashboard({ tasks, activities, onNavigateToTab, onSelectTask, searchVal = '' }: DashboardProps) {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -70,7 +71,24 @@ export default function Dashboard({ tasks, activities, onNavigateToTab, onSelect
   }, []);
 
   // My Tasks list (High or Medium priority, in progress or todo)
-  const myTasks = tasks.filter(t => t.status !== 'Done').slice(0, 3);
+  // Live search filtering — applied to tasks and activities
+  const filteredTasks = searchVal
+    ? tasks.filter(t =>
+        t.title.toLowerCase().includes(searchVal.toLowerCase()) ||
+        t.description.toLowerCase().includes(searchVal.toLowerCase()) ||
+        t.tags.some(tag => tag.toLowerCase().includes(searchVal.toLowerCase()))
+      )
+    : tasks;
+
+  const filteredActivities = searchVal
+    ? activities.filter(a =>
+        a.description.toLowerCase().includes(searchVal.toLowerCase()) ||
+        a.user.name.toLowerCase().includes(searchVal.toLowerCase())
+      )
+    : activities;
+
+  const myTasks = filteredTasks.filter(t => t.status !== 'Done').slice(0, 3);
+
 
   return (
     <div className="p-6 max-w-7xl mx-auto w-full space-y-6">

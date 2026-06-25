@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Search, Bell, Grid, ChevronDown } from 'lucide-react';
-import { User } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, Bell, Grid, ChevronDown, X, CheckCheck, MessageCircle, CheckSquare, Hash, Zap } from 'lucide-react';
+import { User, AppNotification } from '../types';
 
 interface HeaderProps {
   searchVal: string;
@@ -15,7 +16,17 @@ interface HeaderProps {
   currentUser: User | null;
   onTriggerToast: (msg: string) => void;
   isLoading?: boolean;
+  notifications?: AppNotification[];
+  onClearNotifications?: () => void;
+  onMarkAllRead?: () => void;
 }
+
+const notifIcon: Record<AppNotification['type'], React.ReactNode> = {
+  task: <CheckSquare size={13} className="text-primary" />,
+  message: <MessageCircle size={13} className="text-secondary" />,
+  channel: <Hash size={13} className="text-tertiary" />,
+  system: <Zap size={13} className="text-on-surface-variant" />,
+};
 
 export default function Header({ 
   searchVal, 
@@ -25,11 +36,31 @@ export default function Header({
   onProfileClick,
   currentUser,
   onTriggerToast,
-  isLoading
+  isLoading,
+  notifications = [],
+  onClearNotifications,
+  onMarkAllRead,
 }: HeaderProps) {
-  const userAvatar = currentUser?.avatar || "https://lh3.googleusercontent.com/aida-public/AB6AXuBsJEukRni_tXEjVv7G0fDSeT8UdSi7FbwsEUT_G6tuVIEpf16JpZRuFX9Hs_FA_0RK-PWTQiP2g1AJSXjN2wZYSWekIjl_rGMrQCRBsPWph1VIOC1vPr3_SwbvqdM3wRwGCpA4zNcAQMM_1dvktJR_72kVV_mDhptUSDmvvRXTiv0oDO-9Ju9648-WKlcjbCqDzbNky2qnML21LjdnbHOHIj_N01suFnRnYph8ldj4BavqC2-ThpGIx6LcHpm2MnUPe4Vwlg";
-  const userName = currentUser?.name || "Alex Rivera";
-  const userRole = currentUser?.role || "Lead Developer";
+  const [isBellOpen, setIsBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  const userAvatar = currentUser?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=default";
+  const userName = currentUser?.name || "User";
+  const userRole = currentUser?.role || "Member";
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const displayBadge = unreadCount > 0;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setIsBellOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <header className="flex justify-between items-center w-full h-14 px-6 sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-outline-variant">
@@ -48,19 +79,99 @@ export default function Header({
             placeholder={placeholderText}
             className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-1.5 text-xs font-sans text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary focus:bg-surface-container transition-all"
           />
+          {searchVal && (
+            <button
+              onClick={() => setSearchVal('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Action Tray */}
       <div className="flex items-center gap-2 ml-4">
-        <button 
-          onClick={() => onTriggerToast("Feature coming soon: Notifications system is currently under construction.")}
-          title="Notifications"
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-all cursor-pointer relative"
-        >
-          <Bell size={18} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full ring-2 ring-surface"></span>
-        </button>
+        
+        {/* Notification Bell */}
+        <div ref={bellRef} className="relative">
+          <button 
+            onClick={() => setIsBellOpen(prev => !prev)}
+            title="Notifications"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-all cursor-pointer relative"
+          >
+            <Bell size={18} />
+            {displayBadge && (
+              <span className="absolute top-1.5 right-1.5 min-w-[14px] h-[14px] flex items-center justify-center bg-error rounded-full ring-2 ring-surface text-[9px] font-bold text-white px-0.5">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Dropdown Panel */}
+          {isBellOpen && (
+            <div className="absolute right-0 top-11 w-80 bg-surface-container-low border border-outline-variant rounded-xl shadow-2xl shadow-black/40 z-50 overflow-hidden">
+              {/* Panel Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/50">
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface">
+                  Notifications {displayBadge && <span className="text-primary">({unreadCount} new)</span>}
+                </span>
+                <div className="flex items-center gap-2">
+                  {notifications.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => { onMarkAllRead?.(); }}
+                        title="Mark all as read"
+                        className="text-[10px] text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <CheckCheck size={12} /> All read
+                      </button>
+                      <button
+                        onClick={() => { onClearNotifications?.(); }}
+                        title="Clear all"
+                        className="text-[10px] text-on-surface-variant hover:text-error transition-colors cursor-pointer"
+                      >
+                        <X size={12} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Notification List */}
+              <div className="max-h-72 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-on-surface-variant">
+                    <Bell size={24} className="opacity-30" />
+                    <span className="text-xs font-sans">You're all caught up!</span>
+                  </div>
+                ) : (
+                  notifications.slice(0, 20).map(n => (
+                    <div
+                      key={n.id}
+                      className={`flex items-start gap-3 px-4 py-3 border-b border-outline-variant/20 transition-colors ${
+                        !n.read ? 'bg-primary/5' : 'hover:bg-surface-container'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-surface-container-highest flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {notifIcon[n.type]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[11px] leading-snug ${!n.read ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>
+                          {n.text}
+                        </p>
+                        <span className="text-[10px] text-outline font-mono mt-0.5 block">{n.time}</span>
+                      </div>
+                      {!n.read && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <button 
           onClick={() => onTriggerToast("Feature coming soon: SyncForge applications grid console.")}

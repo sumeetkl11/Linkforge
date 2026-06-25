@@ -84,3 +84,10 @@ export interface WikiPage {
   updatedBy: string;
 }
 
+export interface AppNotification {
+  id: string;
+  text: string;
+  time: string;
+  read: boolean;
+  type: 'task' | 'message' | 'channel' | 'system';
+}
