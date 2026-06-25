@@ -1,0 +1,6 @@
+{
+  "name": "SyncForge",
+  "description": "High-performance technical collaboration workspace with Kanban Board, Team Chat, Directory, and Workspace Overview Dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
