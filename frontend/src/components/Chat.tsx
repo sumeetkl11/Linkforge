@@ -8,9 +8,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle, Copy, Check } from 'lucide-react';
 import { Channel, Message, User } from '../types';
 import { CHANNELS, INITIAL_MESSAGES, USERS } from '../data';
-import { fetchMessages, sendMessage, fetchChannels } from '../api';
+import { fetchMessages, sendMessage, fetchChannels, fetchUsers } from '../api';
 
 import { socket } from '../utils/socket';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 interface ChatProps {
   currentUser: User | null;
@@ -34,6 +38,10 @@ export default function Chat({ currentUser }: ChatProps) {
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({});
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachments, setAttachments] = useState<{file: File, previewUrl: string}[]>([]);
 
   // Global socket listener for workspace channel creations
   useEffect(() => {
@@ -58,19 +66,23 @@ export default function Chat({ currentUser }: ChatProps) {
       try {
         const chans = await fetchChannels();
         setChannels(chans);
-        
-        const excludeParam = currentUser ? `?exclude=${currentUser.id}` : '';
-        const users = await fetch(`/api/users${excludeParam}`).then(res => res.json());
-        setColleagues(users);
+
+        // Use fetchUsers() from api.ts so the Authorization header is included.
+        // The previous raw fetch('/api/users') had no auth header — always 401'd.
+        const users = await fetchUsers(currentUser?.id);
+        // Always ensure colleagues is an array, even if the API returns something unexpected.
+        setColleagues(Array.isArray(users) ? users : []);
 
         if (chans.length > 0) {
           setActiveChatId(chans[0].id);
         }
-        if (users.length > 0) {
+        if (Array.isArray(users) && users.length > 0) {
           setSelectedDMColleagueId(users[0].id);
         }
       } catch (err) {
         console.error('Failed to load initial workspace data:', err);
+        // Ensure colleagues is always an array so .map() never throws.
+        setColleagues([]);
       } finally {
         setIsLoading(false);
       }
@@ -84,8 +96,21 @@ export default function Chat({ currentUser }: ChatProps) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [channelMessages, activeChatId]);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow textarea height on content changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [inputText]);
+
   // Fetch messages from backend for the active chat & setup socket sync
   useEffect(() => {
+    // Don't fetch until we have a valid chatId (channels haven't loaded yet).
+    if (!activeChatId) return;
+
     fetchMessages(activeChatId, activeChatType, currentUser?.id)
       .then(msgs => {
         setChannelMessages(prev => ({
@@ -132,34 +157,91 @@ export default function Chat({ currentUser }: ChatProps) {
   }, [activeChatId, activeChatType, currentUser]);
 
   // Handle Send Message
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleSendMessage = async () => {
+    if (!inputText.trim() && attachments.length === 0) return;
 
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      user: currentUser || USERS.alex,
-      content: inputText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+    let finalContent = inputText;
+    setIsUploading(true);
 
-    // 1. Update UI state locally
-    const updatedMessages = [...(channelMessages[activeChatId] || []), newMessage];
-    setChannelMessages(prev => ({
-      ...prev,
-      [activeChatId]: updatedMessages
-    }));
+    try {
+      if (attachments.length > 0) {
+        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-    // 2. Clear input
-    setInputText('');
+        if (!cloudName || !uploadPreset) {
+          throw new Error('Cloudinary environment configuration missing');
+        }
 
-    // Save message to database
-    sendMessage(
-      activeChatType === 'channel' ? activeChatId : null,
-      newMessage,
-      activeChatType === 'dm' ? activeChatId : undefined
-    ).catch(err =>
-      console.error('Failed to save message to server:', err)
-    );
+        // Concurrently upload all attachments to Cloudinary auto-upload endpoint
+        const uploadPromises = attachments.map(async ({ file }) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('upload_preset', uploadPreset);
+
+          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Upload of ${file.name} failed (${response.status}): ${errText}`);
+          }
+
+          const data = await response.json();
+          return {
+            name: file.name,
+            type: file.type,
+            secureUrl: data.secure_url as string
+          };
+        });
+
+        const uploadedFiles = await Promise.all(uploadPromises);
+
+        // Format each uploaded file as dynamic Markdown
+        const markdownStrings = uploadedFiles.map(file => {
+          if (file.type.startsWith('image/')) {
+            return `\n![${file.name}](${file.secureUrl})\n`;
+          } else {
+            return `\n[📎 ${file.name}](${file.secureUrl})\n`;
+          }
+        });
+
+        finalContent = `${finalContent}${markdownStrings.join('')}`;
+      }
+
+      const newMessage: Message = {
+        id: `msg-${Date.now()}`,
+        user: currentUser || USERS.alex,
+        content: finalContent,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      // 1. Update UI state locally
+      const updatedMessages = [...(channelMessages[activeChatId] || []), newMessage];
+      setChannelMessages(prev => ({
+        ...prev,
+        [activeChatId]: updatedMessages
+      }));
+
+      // 2. Clear input & attachments
+      setInputText('');
+      attachments.forEach(att => URL.revokeObjectURL(att.previewUrl));
+      setAttachments([]);
+
+      // 3. Save message to database & trigger real-time socket
+      await sendMessage(
+        activeChatType === 'channel' ? activeChatId : null,
+        newMessage,
+        activeChatType === 'dm' ? activeChatId : undefined
+      );
+
+    } catch (err: any) {
+      console.error('Failed to send message:', err);
+      alert(`Failed to send message: ${err.message || err}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -216,10 +298,116 @@ export default function Chat({ currentUser }: ChatProps) {
   };
 
   const insertFormatting = (format: 'bold' | 'italic' | 'code' | 'link') => {
-    if (format === 'bold') setInputText(prev => prev + '**bold_text**');
-    if (format === 'italic') setInputText(prev => prev + '*italic_text*');
-    if (format === 'code') setInputText(prev => prev + '```\n// code here\n```');
-    if (format === 'link') setInputText(prev => prev + '[label](url)');
+    const el = textareaRef.current;
+    if (!el) {
+      if (format === 'bold') setInputText(prev => prev + '**bold text**');
+      if (format === 'italic') setInputText(prev => prev + '*italic text*');
+      if (format === 'code') setInputText(prev => prev + '```\ncode here\n```');
+      if (format === 'link') setInputText(prev => prev + '[link text](url)');
+      return;
+    }
+
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selection = el.value.substring(start, end);
+
+    let wrappedText = '';
+    let newCursorStart = start;
+    let newCursorEnd = end;
+
+    if (format === 'bold') {
+      const textToWrap = selection || 'bold text';
+      wrappedText = `**${textToWrap}**`;
+      if (!selection) {
+        newCursorStart = start + 2;
+        newCursorEnd = start + 2 + textToWrap.length;
+      } else {
+        newCursorStart = newCursorEnd = start + wrappedText.length;
+      }
+    } else if (format === 'italic') {
+      const textToWrap = selection || 'italic text';
+      wrappedText = `*${textToWrap}*`;
+      if (!selection) {
+        newCursorStart = start + 1;
+        newCursorEnd = start + 1 + textToWrap.length;
+      } else {
+        newCursorStart = newCursorEnd = start + wrappedText.length;
+      }
+    } else if (format === 'code') {
+      const textToWrap = selection || 'code here';
+      wrappedText = `\`\`\`\n${textToWrap}\n\`\`\``;
+      if (!selection) {
+        newCursorStart = start + 4;
+        newCursorEnd = start + 4 + textToWrap.length;
+      } else {
+        newCursorStart = newCursorEnd = start + wrappedText.length;
+      }
+    } else if (format === 'link') {
+      const textToWrap = selection || 'link text';
+      wrappedText = `[${textToWrap}](url)`;
+      if (!selection) {
+        newCursorStart = start + 1;
+        newCursorEnd = start + 1 + textToWrap.length;
+      } else {
+        newCursorStart = newCursorEnd = start + wrappedText.length;
+      }
+    }
+
+    const before = el.value.substring(0, start);
+    const after = el.value.substring(end);
+    setInputText(before + wrappedText + after);
+
+    // Focus and select the placeholder text or set the new cursor position
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(newCursorStart, newCursorEnd);
+    }, 0);
+  };
+
+  const handleEmojiClick = (emojiData: any) => {
+    const emoji = emojiData.emoji;
+    const el = textareaRef.current;
+    if (!el) {
+      setInputText(prev => prev + emoji);
+      setShowEmojiPicker(false);
+      return;
+    }
+
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const before = el.value.substring(0, start);
+    const after = el.value.substring(end);
+    setInputText(before + emoji + after);
+    setShowEmojiPicker(false);
+
+    setTimeout(() => {
+      el.focus();
+      const newPos = start + emoji.length;
+      el.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    const newAttachments = Array.from(selectedFiles).map(file => ({
+      file,
+      previewUrl: URL.createObjectURL(file)
+    }));
+
+    setAttachments(prev => [...prev, ...newAttachments]);
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => {
+      const target = prev[index];
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const activeChan = activeChatType === 'channel' ? channels.find(c => c.id === activeChatId) : null;
@@ -417,7 +605,62 @@ export default function Chat({ currentUser }: ChatProps) {
                       <span className="text-[10px] text-outline-variant font-mono">{message.timestamp}</span>
                     </div>
                     
-                    <p className="mt-1 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                    <div className="mt-1 text-xs text-on-surface leading-relaxed markdown-content">
+                      <ReactMarkdown
+                        components={{
+                          code({ className, children, ...props }: any) {
+                            const { ref, ...rest } = props;
+                            const match = /language-(\w+)/.exec(className || '');
+                            return match ? (
+                              <SyntaxHighlighter
+                                style={dracula as any}
+                                language={match[1]}
+                                PreTag="div"
+                                className="rounded-lg border border-outline-variant/30 my-2 text-xs overflow-x-auto"
+                                {...rest}
+                              >
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            ) : (
+                              <code className={`${className || ''} bg-surface-container-highest px-1.5 py-0.5 rounded text-[11px] font-mono`} {...props}>
+                                {children}
+                              </code>
+                            );
+                          },
+                          img({ src, alt, ...props }: any) {
+                            return (
+                              <img
+                                src={src}
+                                alt={alt || 'Image Attachment'}
+                                style={{
+                                  maxWidth: '100%',
+                                  maxHeight: '350px',
+                                  borderRadius: '8px',
+                                  objectFit: 'contain'
+                                }}
+                                className="my-2 border border-outline-variant/30 shadow-md"
+                                {...props}
+                              />
+                            );
+                          },
+                          a({ href, children, ...props }: any) {
+                            return (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                {...props}
+                              >
+                                {children}
+                              </a>
+                            );
+                          }
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
 
                     {/* Styled Code Snippet blocks */}
                     {message.codeSnippet && (
@@ -468,7 +711,29 @@ export default function Chat({ currentUser }: ChatProps) {
         </div>
 
         {/* Rich Input Editor Box */}
-        <div className="p-6 pt-0">
+        <div className="p-6 pt-0 relative">
+          {showEmojiPicker && (
+            <div className="absolute bottom-20 right-6 z-50">
+              <EmojiPicker
+                theme={Theme.DARK}
+                onEmojiClick={handleEmojiClick}
+                searchDisabled
+                skinTonesDisabled
+                previewConfig={{ showPreview: false }}
+                height={350}
+                width={300}
+              />
+            </div>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+
           <div className="bg-surface-container border border-outline-variant rounded-xl p-1.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
             {/* Formatting tool rail */}
             <div className="flex items-center gap-1 px-2 py-1 border-b border-outline-variant/30 mb-1">
@@ -476,28 +741,76 @@ export default function Chat({ currentUser }: ChatProps) {
               <button onClick={() => insertFormatting('italic')} className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Italic"><Italic size={14} /></button>
               <button onClick={() => insertFormatting('code')} className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Code Block"><Code size={14} /></button>
               <button onClick={() => insertFormatting('link')} className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Link"><Link size={14} /></button>
-              <span className="w-[1px] h-4 bg-outline-variant mx-1"></span>
-              <button className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Mentions"><AtSign size={14} /></button>
+              {activeChatType === 'channel' && (
+                <>
+                  <span className="w-[1px] h-4 bg-outline-variant mx-1"></span>
+                  <button className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Mentions"><AtSign size={14} /></button>
+                </>
+              )}
             </div>
+
+            {/* Thumbnail previews */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2 border-b border-outline-variant/30 max-h-28 overflow-y-auto">
+                {attachments.map((att, index) => {
+                  const isImage = att.file.type.startsWith('image/');
+                  return (
+                    <div key={index} className="relative flex items-center gap-2 p-1.5 bg-surface-container-high border border-outline-variant rounded-lg max-w-[200px] group transition-all">
+                      {isImage ? (
+                        <img 
+                          src={att.previewUrl} 
+                          alt="preview" 
+                          className="w-10 h-10 rounded object-cover border border-outline-variant/30"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                          <FileText size={18} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 pr-4">
+                        <div className="text-[10px] font-bold text-on-surface truncate leading-tight">{att.file.name}</div>
+                        <div className="text-[9px] text-on-surface-variant font-mono mt-0.5 uppercase">{(att.file.size / 1024).toFixed(1)} KB</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(index)}
+                        className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 text-white w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        title="Remove file"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Input fields */}
             <div className="flex items-end gap-2 px-2 py-1.5">
-              <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+              <button 
+                onClick={(e) => { e.preventDefault(); fileInputRef.current?.click(); }}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+              >
                 <Paperclip size={16} />
               </button>
               
               <textarea
+                ref={textareaRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder={activeChatType === 'channel' ? `Message #${activeChan?.name || ''}` : `Message @${activeColleague?.username || activeColleague?.name.toLowerCase().replace(' ', '_')}`}
+                placeholder={isUploading ? "Uploading image..." : (activeChatType === 'channel' ? `Message #${activeChan?.name || ''}` : `Message @${activeColleague?.username || activeColleague?.name.toLowerCase().replace(' ', '_')}`)}
+                disabled={isUploading}
                 rows={1}
-                className="flex-1 bg-transparent border-none focus:ring-0 resize-none text-xs text-on-surface py-1 max-h-36 placeholder:text-on-surface-variant/60 outline-none"
+                className="flex-1 bg-transparent border-none focus:ring-0 resize-none text-xs text-on-surface py-1 max-h-36 placeholder:text-on-surface-variant/60 outline-none disabled:opacity-50"
                 style={{ height: 'auto' }}
               />
 
               <div className="flex items-center gap-1.5">
-                <button className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+                <button 
+                  onClick={() => setShowEmojiPicker(prev => !prev)}
+                  className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                >
                   <Smile size={16} />
                 </button>
                 <button 

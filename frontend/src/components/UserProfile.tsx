@@ -39,7 +39,7 @@ export default function UserProfile({ currentUser, onUpdateUser }: UserProfilePr
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
 
     if (!file.type.startsWith('image/')) {
       setUploadError("Please select a valid image file.");

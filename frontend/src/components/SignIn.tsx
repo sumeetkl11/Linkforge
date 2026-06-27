@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Mail, Lock, ArrowRight, Check, Github, Cpu, Fingerprint, Sparkles, Chrome } from 'lucide-react';
 import { motion } from 'motion/react';
 
-import { loginUser, createUser } from '../api';
+import { loginUser, registerUser } from '../api';
 import { User } from '../types';
 
 interface SignInProps {
@@ -149,24 +149,16 @@ export default function SignIn({ onLogin }: SignInProps) {
     setErrorMsg(null);
     try {
       if (isSignUp) {
+        // C2 fix: call /api/register (creates account with hashed password),
+        // NOT /api/users (profile upsert that stores no password).
         const username = email.split('@')[0];
-        const newUser: User = {
-          id: `u-${Date.now()}`,
-          name: username.charAt(0).toUpperCase() + username.slice(1),
-          email: email.trim().toLowerCase(),
-          role: 'Developer',
-          status: 'Online',
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
-          commits: 0,
-          reviews: 0,
-          proficiency: 0,
-          username
-        };
-        const createdUser = await createUser(newUser);
+        const name = username.charAt(0).toUpperCase() + username.slice(1);
+        const { user } = await registerUser(email, password, name);
         setIsSubmitting(false);
-        onLogin(createdUser);
+        onLogin(user);
       } else {
-        const user = await loginUser(email);
+        // C1 fix: pass the password field (was missing, causing 400 every time).
+        const { user } = await loginUser(email, password);
         setIsSubmitting(false);
         onLogin(user);
       }
@@ -180,7 +172,8 @@ export default function SignIn({ onLogin }: SignInProps) {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const user = await loginUser('alex.r@syncforge.io');
+      // Demo credentials match the seed default password from backend/.env
+      const { user } = await loginUser('alex.r@syncforge.io', 'syncforge123');
       setIsSubmitting(false);
       onLogin(user);
     } catch (err) {
@@ -269,7 +262,8 @@ export default function SignIn({ onLogin }: SignInProps) {
           <div className="grid grid-cols-2 gap-3">
             <button 
               type="button"
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/github'}
+              // H2 fix: use VITE_API_URL instead of hardcoded localhost:5000
+              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/github`}
               className="flex items-center justify-center gap-2 py-2 border border-outline-variant hover:border-primary rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low/20 transition-all cursor-pointer"
             >
               <Github size={14} />
@@ -277,7 +271,7 @@ export default function SignIn({ onLogin }: SignInProps) {
             </button>
             <button 
               type="button"
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/google`}
               className="flex items-center justify-center gap-2 py-2 border border-outline-variant hover:border-primary rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low/20 transition-all cursor-pointer"
             >
               <Chrome size={14} className="text-primary" />

@@ -1,0 +1,384 @@
+{
+  "communities": {
+    "0": [
+      "backend_seed_neon",
+      "backend_seed_neon_pool",
+      "backend_seed_neon_run",
+      "backend_server",
+      "backend_server_apilimiter",
+      "backend_server_app",
+      "backend_server_authlimiter",
+      "backend_server_dirname",
+      "backend_server_filename",
+      "backend_server_getcache",
+      "backend_server_getuserbyid",
+      "backend_server_gracefulshutdown",
+      "backend_server_initializedatabase",
+      "backend_server_invalidatecache",
+      "backend_server_ispostgres",
+      "backend_server_pool",
+      "backend_server_pushdashboardstats",
+      "backend_server_sanitizeuser",
+      "backend_server_seeddatabase",
+      "backend_server_server",
+      "backend_server_setcache",
+      "backend_server_startserver",
+      "config_env",
+      "config_env_appurl",
+      "config_env_config",
+      "config_env_dirname",
+      "config_env_filename",
+      "config_env_isproduction",
+      "config_env_jwtsecret",
+      "config_env_oauthcred",
+      "config_env_oauthstatus",
+      "config_env_optional",
+      "config_env_required",
+      "config_passport",
+      "config_passport_upsertoauthuser",
+      "middleware_auth",
+      "middleware_auth_optionalauth",
+      "middleware_auth_requireauth",
+      "routes_auth",
+      "routes_auth_oauthcallback",
+      "routes_auth_router",
+      "utils_jwt",
+      "utils_jwt_signtoken",
+      "utils_jwt_verifytoken"
+    ],
+    "1": [
+      "components_chat",
+      "components_chat_chat",
+      "components_chat_chatprops",
+      "components_sidebar",
+      "components_sidebar_sidebar",
+      "components_sidebar_sidebarprops",
+      "components_taskboard",
+      "components_taskboard_taskboard",
+      "components_taskboard_taskboardprops",
+      "components_taskdetailsmodal",
+      "components_taskdetailsmodal_taskdetailsmodal",
+      "components_taskdetailsmodal_taskdetailsmodalprops",
+      "components_teamdirectory",
+      "components_teamdirectory_teamdirectory",
+      "components_teamdirectory_teamdirectoryprops",
+      "components_userprofile",
+      "components_userprofile_userprofile",
+      "components_userprofile_userprofileprops",
+      "src_api_fetchusers",
+      "src_data",
+      "src_data_channels",
+      "src_data_initial_messages",
+      "src_data_users",
+      "src_types",
+      "src_types_channel",
+      "src_types_comment",
+      "src_types_message",
+      "src_types_task",
+      "src_types_user"
+    ],
+    "2": [
+      "components_signin",
+      "components_signin_signin",
+      "components_signin_signinprops",
+      "components_wiki",
+      "components_wiki_wiki",
+      "src_api",
+      "src_api_authheaders",
+      "src_api_createactivity",
+      "src_api_createchannel",
+      "src_api_createtask",
+      "src_api_createuser",
+      "src_api_decodetoken",
+      "src_api_deletetask",
+      "src_api_deletewikipage",
+      "src_api_fetchactivities",
+      "src_api_fetchchannels",
+      "src_api_fetchcurrentuser",
+      "src_api_fetchmessages",
+      "src_api_fetchtasks",
+      "src_api_fetchwikipages",
+      "src_api_gettoken",
+      "src_api_loginuser",
+      "src_api_registeruser",
+      "src_api_resetdatabase",
+      "src_api_savewikipage",
+      "src_api_sendmessage",
+      "src_api_settoken",
+      "src_api_updatetask",
+      "src_types_wikipage"
+    ],
+    "3": [
+      "backend_package",
+      "backend_package_dependencies",
+      "backend_package_dependencies_bcryptjs",
+      "backend_package_dependencies_cors",
+      "backend_package_dependencies_dotenv",
+      "backend_package_dependencies_express",
+      "backend_package_dependencies_express_rate_limit",
+      "backend_package_dependencies_helmet",
+      "backend_package_dependencies_jsonwebtoken",
+      "backend_package_dependencies_morgan",
+      "backend_package_dependencies_passport",
+      "backend_package_dependencies_passport_github2",
+      "backend_package_dependencies_passport_google_oauth20",
+      "backend_package_dependencies_pg",
+      "backend_package_dependencies_redis",
+      "backend_package_dependencies_socket_io",
+      "backend_package_dependencies_socket_io_redis_adapter",
+      "backend_package_description",
+      "backend_package_devdependencies",
+      "backend_package_devdependencies_nodemon",
+      "backend_package_main",
+      "backend_package_name",
+      "backend_package_scripts",
+      "backend_package_scripts_dev",
+      "backend_package_scripts_start",
+      "backend_package_type",
+      "backend_package_version"
+    ],
+    "4": [
+      "frontend_package",
+      "frontend_package_dependencies",
+      "frontend_package_dependencies_google_genai",
+      "frontend_package_dependencies_lucide_react",
+      "frontend_package_dependencies_motion",
+      "frontend_package_dependencies_react",
+      "frontend_package_dependencies_react_dom",
+      "frontend_package_dependencies_socket_io_client",
+      "frontend_package_dependencies_tailwindcss_vite",
+      "frontend_package_dependencies_vitejs_plugin_react",
+      "frontend_package_devdependencies",
+      "frontend_package_devdependencies_autoprefixer",
+      "frontend_package_devdependencies_esbuild",
+      "frontend_package_devdependencies_tailwindcss",
+      "frontend_package_devdependencies_tsx",
+      "frontend_package_devdependencies_types_node",
+      "frontend_package_devdependencies_typescript",
+      "frontend_package_devdependencies_vite",
+      "frontend_package_name",
+      "frontend_package_private",
+      "frontend_package_scripts",
+      "frontend_package_scripts_build",
+      "frontend_package_scripts_dev",
+      "frontend_package_scripts_lint",
+      "frontend_package_scripts_preview",
+      "frontend_package_type",
+      "frontend_package_version"
+    ],
+    "5": [
+      "backend_server_io",
+      "components_dashboard",
+      "components_dashboard_dashboard",
+      "components_dashboard_dashboardprops",
+      "components_header",
+      "components_header_header",
+      "components_header_headerprops",
+      "components_header_notificon",
+      "src_api_cleartoken",
+      "src_app",
+      "src_app_app",
+      "src_app_chat",
+      "src_app_dashboard",
+      "src_app_settings",
+      "src_app_taskboard",
+      "src_app_teamdirectory",
+      "src_app_userprofile",
+      "src_app_wiki",
+      "src_data_initial_tasks",
+      "src_data_recent_activities",
+      "src_types_activity",
+      "src_types_appnotification",
+      "utils_socket",
+      "utils_socket_buildsocket",
+      "utils_socket_socket"
+    ],
+    "6": [
+      "frontend_tsconfig",
+      "frontend_tsconfig_compileroptions",
+      "frontend_tsconfig_compileroptions_allowimportingtsextensions",
+      "frontend_tsconfig_compileroptions_allowjs",
+      "frontend_tsconfig_compileroptions_experimentaldecorators",
+      "frontend_tsconfig_compileroptions_forceconsistentcasinginfilenames",
+      "frontend_tsconfig_compileroptions_isolatedmodules",
+      "frontend_tsconfig_compileroptions_jsx",
+      "frontend_tsconfig_compileroptions_lib",
+      "frontend_tsconfig_compileroptions_module",
+      "frontend_tsconfig_compileroptions_moduledetection",
+      "frontend_tsconfig_compileroptions_moduleresolution",
+      "frontend_tsconfig_compileroptions_noemit",
+      "frontend_tsconfig_compileroptions_nofallthroughcasesinswitch",
+      "frontend_tsconfig_compileroptions_nounusedlocals",
+      "frontend_tsconfig_compileroptions_nounusedparameters",
+      "frontend_tsconfig_compileroptions_paths",
+      "frontend_tsconfig_compileroptions_skiplibcheck",
+      "frontend_tsconfig_compileroptions_strict",
+      "frontend_tsconfig_compileroptions_target",
+      "frontend_tsconfig_compileroptions_usedefineforclassfields",
+      "frontend_tsconfig_paths"
+    ],
+    "7": [
+      "components_errorboundary",
+      "components_errorboundary_errorboundary",
+      "components_errorboundary_errorboundary_componentdidcatch",
+      "components_errorboundary_errorboundary_constructor",
+      "components_errorboundary_errorboundary_getderivedstatefromerror",
+      "components_errorboundary_errorboundary_handlereload",
+      "components_errorboundary_errorboundary_handlereset",
+      "components_errorboundary_errorboundary_render",
+      "components_errorboundary_props",
+      "components_errorboundary_state",
+      "index_root",
+      "src_main"
+    ],
+    "8": [
+      "components_settings",
+      "components_settings_settings",
+      "components_settings_settingsprops",
+      "components_settings_tabtype"
+    ],
+    "9": [
+      "readme_backend_server",
+      "readme_frontend_application",
+      "readme_syncforge"
+    ],
+    "10": [
+      "graphify_rules",
+      "graphify_workflow"
+    ],
+    "11": [
+      "frontend_vite_config"
+    ],
+    "12": [
+      "readme_ai_studio_app"
+    ]
+  },
+  "cohesion": {
+    "0": 0.0708245243128964,
+    "1": 0.14532019704433496,
+    "2": 0.13054187192118227,
+    "3": 0.07407407407407407,
+    "4": 0.07407407407407407,
+    "5": 0.1,
+    "6": 0.09090909090909091,
+    "7": 0.18181818181818182,
+    "8": 0.5,
+    "9": 1.0,
+    "10": 1.0,
+    "11": 1.0,
+    "12": 1.0
+  },
+  "gods": [
+    {
+      "id": "frontend_tsconfig_compileroptions",
+      "label": "compilerOptions",
+      "degree": 20
+    },
+    {
+      "id": "src_api_authheaders",
+      "label": "authHeaders()",
+      "degree": 19
+    },
+    {
+      "id": "src_types_user",
+      "label": "User",
+      "degree": 17
+    },
+    {
+      "id": "src_types_task",
+      "label": "Task",
+      "degree": 10
+    },
+    {
+      "id": "components_errorboundary_errorboundary",
+      "label": "ErrorBoundary",
+      "degree": 8
+    },
+    {
+      "id": "config_env_config",
+      "label": "config",
+      "degree": 6
+    },
+    {
+      "id": "src_types_activity",
+      "label": "Activity",
+      "degree": 6
+    },
+    {
+      "id": "utils_jwt_verifytoken",
+      "label": "verifyToken()",
+      "degree": 5
+    },
+    {
+      "id": "frontend_package_scripts",
+      "label": "scripts",
+      "degree": 5
+    },
+    {
+      "id": "src_api_fetchusers",
+      "label": "fetchUsers()",
+      "degree": 5
+    }
+  ],
+  "surprises": [
+    {
+      "source": "buildSocket()",
+      "target": "io",
+      "source_files": [
+        "frontend/src/utils/socket.ts",
+        "backend/server.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories"
+    },
+    {
+      "source": "SignInProps",
+      "target": "User",
+      "source_files": [
+        "frontend/src/components/SignIn.tsx",
+        "frontend/src/types.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "bridges separate communities; peripheral node `SignInProps` unexpectedly reaches hub `User`"
+    },
+    {
+      "source": "optionalAuth()",
+      "target": "verifyToken()",
+      "source_files": [
+        "backend/middleware/auth.js",
+        "backend/utils/jwt.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "peripheral node `optionalAuth()` unexpectedly reaches hub `verifyToken()`"
+    },
+    {
+      "source": "buildSocket()",
+      "target": "getToken()",
+      "source_files": [
+        "frontend/src/utils/socket.ts",
+        "frontend/src/api.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "ChatProps",
+      "target": "User",
+      "source_files": [
+        "frontend/src/components/Chat.tsx",
+        "frontend/src/types.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "peripheral node `ChatProps` unexpectedly reaches hub `User`"
+    }
+  ],
+  "tokens": {
+    "input": 1788,
+    "output": 848
+  }
+}

@@ -3,23 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Info, X } from 'lucide-react';
+// Eagerly loaded: always needed on first paint
 import SignIn from './components/SignIn';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import Chat from './components/Chat';
-import TaskBoard from './components/TaskBoard';
-import TeamDirectory from './components/TeamDirectory';
 import TaskDetailsModal from './components/TaskDetailsModal';
-import Settings from './components/Settings';
-import UserProfile from './components/UserProfile';
-import Wiki from './components/Wiki';
-import { Task, Activity, User } from './types';
+// Lazily loaded: Vite splits each into a separate chunk downloaded on demand
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Chat = lazy(() => import('./components/Chat'));
+const TaskBoard = lazy(() => import('./components/TaskBoard'));
+const TeamDirectory = lazy(() => import('./components/TeamDirectory'));
+const Settings = lazy(() => import('./components/Settings'));
+const UserProfile = lazy(() => import('./components/UserProfile'));
+const Wiki = lazy(() => import('./components/Wiki'));
+import { Task, Activity, User, AppNotification } from './types';
 import { INITIAL_TASKS, RECENT_ACTIVITIES } from './data';
-import { fetchTasks, fetchActivities, fetchUsers, resetDatabase } from './api';
+import { fetchTasks, fetchActivities, fetchUsers, fetchCurrentUser, resetDatabase, clearToken } from './api';
 import { socket } from './utils/socket';
 
 export default function App() {
@@ -32,6 +34,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // Auto-clear Toast
   useEffect(() => {
@@ -47,17 +50,19 @@ export default function App() {
     setToastMessage(msg);
   };
 
-  // Capture Google OAuth token from URL or localStorage on boot
+  // Capture OAuth token from URL hash (#token=…) or fall back to localStorage.
+  // The server redirects with a fragment (`#token=…`) so the token never appears
+  // in server logs or the Referer header.
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    if (token) {
-      localStorage.setItem('token', token);
-      
-      // Clean query parameters from URL for security
-      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-      
+    // Read from URL hash first (OAuth callback: /app#token=<jwt>)
+    const hash = window.location.hash;
+    const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const hashToken = hashParams.get('token');
+
+    if (hashToken) {
+      localStorage.setItem('token', hashToken);
+      // Strip the fragment so the token never lingers in browser history.
+      window.history.replaceState({}, document.title, window.location.pathname);
       setIsLoggedIn(true);
     } else {
       const storedToken = localStorage.getItem('token');
@@ -69,35 +74,21 @@ export default function App() {
     }
   }, []);
 
-  // Load user data on login
+  // Load authenticated user via /api/auth/me — verified server-side.
+  // This is the canonical way to hydrate the session on boot/refresh.
   useEffect(() => {
     if (isLoggedIn && !currentUser) {
-      const storedToken = localStorage.getItem('token');
-      let targetUserId: string | null = null;
-      
-      if (storedToken) {
-        try {
-          const parts = storedToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            targetUserId = payload.id;
-          }
-        } catch (e) {
-          console.error('Error decoding JWT token:', e);
-        }
-      }
-      
       setIsLoadingUser(true);
-      fetchUsers()
-        .then(users => {
-          const user = users.find(u => u.id === targetUserId) || users.find(u => u.id === 'u1') || users[0];
-          if (user) {
-            setCurrentUser(user);
-          }
+      fetchCurrentUser()
+        .then(user => {
+          setCurrentUser(user);
           setIsLoadingUser(false);
         })
         .catch(err => {
-          console.error('Failed to load user credentials:', err);
+          console.error('Session validation failed:', err);
+          // Token is invalid or expired — force logout.
+          clearToken();
+          setIsLoggedIn(false);
           setIsLoadingUser(false);
         });
     } else if (isLoggedIn && currentUser) {
@@ -137,6 +128,14 @@ export default function App() {
         if (prev.some(t => t.id === newTask.id)) return prev;
         return [newTask, ...prev];
       });
+      // Generate a notification for the new task.
+      setNotifications(prev => [{
+        id: `notif-task-${newTask.id}-${Date.now()}`,
+        text: `New task created: "${newTask.title}"`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        read: false,
+        type: 'task' as const,
+      }, ...prev].slice(0, 50)); // keep at most 50
     };
 
     const handleTaskUpdated = (updatedTask: Task) => {
@@ -169,6 +168,11 @@ export default function App() {
     fetchTasks().then(setTasks).catch(console.error);
     fetchActivities().then(setActivities).catch(console.error);
   };
+
+  // Notification handlers
+  const handleClearNotifications = () => setNotifications([]);
+  const handleMarkAllRead = () =>
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   // Reset workspace database
   const handleResetDatabase = async () => {
@@ -257,57 +261,70 @@ export default function App() {
           currentUser={currentUser}
           onTriggerToast={handleTriggerToast}
           isLoading={isLoadingUser}
+          notifications={notifications}
+          onClearNotifications={handleClearNotifications}
+          onMarkAllRead={handleMarkAllRead}
         />
 
-        {/* Dynamic Inner Panel Viewport */}
+        {/* Dynamic Inner Panel Viewport — lazy chunks render inside Suspense */}
         <div className="flex-1 overflow-y-auto bg-surface-container-lowest/20">
-          <AnimatePresence mode="wait">
-            {currentScreen === 'Dashboard' && (
-              <Dashboard 
-                tasks={tasks}
-                activities={activities}
-                onNavigateToTab={handleNavigateToTab}
-                onSelectTask={handleSelectTask}
-              />
-            )}
+          <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center h-full">
+              <div className="space-y-3 w-64">
+                <div className="h-4 bg-surface-container rounded animate-pulse" />
+                <div className="h-4 bg-surface-container rounded animate-pulse w-4/5" />
+                <div className="h-4 bg-surface-container rounded animate-pulse w-3/5" />
+              </div>
+            </div>
+          }>
+            <AnimatePresence mode="wait">
+              {currentScreen === 'Dashboard' && (
+                <Dashboard 
+                  tasks={tasks}
+                  activities={activities}
+                  onNavigateToTab={handleNavigateToTab}
+                  onSelectTask={handleSelectTask}
+                />
+              )}
 
-            {currentScreen === 'Chat' && (
-              <Chat currentUser={currentUser} />
-            )}
+              {currentScreen === 'Chat' && (
+                <Chat currentUser={currentUser} />
+              )}
 
-            {currentScreen === 'TaskBoard' && (
-              <TaskBoard 
-                tasks={tasks}
-                setTasks={setTasks}
-                onSelectTask={handleSelectTask}
-                searchVal={searchVal}
-              />
-            )}
+              {currentScreen === 'TaskBoard' && (
+                <TaskBoard 
+                  tasks={tasks}
+                  setTasks={setTasks}
+                  onSelectTask={handleSelectTask}
+                  searchVal={searchVal}
+                />
+              )}
 
-            {currentScreen === 'TeamDirectory' && (
-              <TeamDirectory 
-                searchVal={searchVal}
-                currentUser={currentUser}
-              />
-            )}
+              {currentScreen === 'TeamDirectory' && (
+                <TeamDirectory 
+                  searchVal={searchVal}
+                  currentUser={currentUser}
+                />
+              )}
 
-            {currentScreen === 'Settings' && (
-              <Settings 
-                onResetWorkspace={handleResetDatabase}
-              />
-            )}
+              {currentScreen === 'Settings' && (
+                <Settings 
+                  onResetWorkspace={handleResetDatabase}
+                />
+              )}
 
-            {currentScreen === 'UserProfile' && (
-              <UserProfile 
-                currentUser={currentUser}
-                onUpdateUser={handleUpdateUser}
-              />
-            )}
+              {currentScreen === 'UserProfile' && (
+                <UserProfile 
+                  currentUser={currentUser}
+                  onUpdateUser={handleUpdateUser}
+                />
+              )}
 
-            {currentScreen === 'Wiki' && (
-              <Wiki />
-            )}
-          </AnimatePresence>
+              {currentScreen === 'Wiki' && (
+                <Wiki />
+              )}
+            </AnimatePresence>
+          </Suspense>
         </div>
       </div>
 
