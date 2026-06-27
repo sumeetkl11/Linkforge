@@ -5,8 +5,8 @@
     "semantic_hash": "a353d62fb4fba07ae6625cf170973373"
   },
   "backend/config/passport.js": {
-    "mtime": 1782589830.006533,
-    "ast_hash": "77ebb0a81069dbbe48a6a5e9cd86aba7",
+    "mtime": 1782596923.3698945,
+    "ast_hash": "9b67e665b2b7182d6b248182092423a4",
     "semantic_hash": ""
   },
   "backend/middleware/auth.js": {
@@ -20,14 +20,14 @@
     "semantic_hash": "ddf9c529811dc603f025d4d0052bd589"
   },
   "backend/package.json": {
-    "mtime": 1782498160.2172325,
-    "ast_hash": "6a84cbb383371ee9b34be65e4a705fb3",
-    "semantic_hash": "6a84cbb383371ee9b34be65e4a705fb3"
+    "mtime": 1782596903.1373487,
+    "ast_hash": "f53b205da0b7d71f3e461f6694425682",
+    "semantic_hash": ""
   },
   "backend/routes/auth.js": {
-    "mtime": 1782399213.9597468,
-    "ast_hash": "37bf05fcc5e654e8b4eee86a58ea980b",
-    "semantic_hash": "37bf05fcc5e654e8b4eee86a58ea980b"
+    "mtime": 1782595940.3105001,
+    "ast_hash": "f34d22b08df95a0563b1e1c066c31ec5",
+    "semantic_hash": ""
   },
   "backend/seed-neon.js": {
     "mtime": 1782589836.9373343,
@@ -35,8 +35,8 @@
     "semantic_hash": ""
   },
   "backend/server.js": {
-    "mtime": 1782589845.7220833,
-    "ast_hash": "f1bb32d75adf9962fdbb3bcc411a4328",
+    "mtime": 1782596916.6219537,
+    "ast_hash": "7adbc083c51d1cff628b6e06a7c11340",
     "semantic_hash": ""
   },
   "backend/utils/jwt.js": {
@@ -45,8 +45,8 @@
     "semantic_hash": "dcd420cfb2ab7ba54c4e339ea7d1b075"
   },
   "frontend/package.json": {
-    "mtime": 1782592721.869485,
-    "ast_hash": "3466b61f36e95824475ec31ca750e79d",
+    "mtime": 1782596910.1749244,
+    "ast_hash": "680c30db5b6d32bb0a9a056f91b1e556",
     "semantic_hash": ""
   },
   "frontend/src/App.tsx": {
@@ -60,8 +60,8 @@
     "semantic_hash": "a7420afbd583a9cef659a0a037cd6973"
   },
   "frontend/src/components/Chat.tsx": {
-    "mtime": 1782594665.4672565,
-    "ast_hash": "185cea91e5e4498b88ca077b6de0b304",
+    "mtime": 1782596946.1237755,
+    "ast_hash": "3191b2d83ff9d58dfe53d8849161ca4d",
     "semantic_hash": ""
   },
   "frontend/src/components/Dashboard.tsx": {
@@ -130,14 +130,14 @@
     "semantic_hash": "e9cb2fa9a0dc8accf9e881ce67b4ec16"
   },
   "frontend/src/types.ts": {
-    "mtime": 1782396109.7435455,
-    "ast_hash": "7be896fe53e8f8bcabe8938902cb8863",
-    "semantic_hash": "7be896fe53e8f8bcabe8938902cb8863"
+    "mtime": 1782596004.8385508,
+    "ast_hash": "fde60044f296b0d9a2e413cb0928c428",
+    "semantic_hash": ""
   },
   "frontend/src/utils/socket.ts": {
-    "mtime": 1782497901.7113235,
-    "ast_hash": "43e546710b9ecf2c1e305814b964b992",
-    "semantic_hash": "43e546710b9ecf2c1e305814b964b992"
+    "mtime": 1782595861.5558128,
+    "ast_hash": "645451ccb4b03c6644caa645f042695e",
+    "semantic_hash": ""
   },
   "frontend/tsconfig.json": {
     "mtime": 1782589990.556756,
@@ -175,8 +175,8 @@
     "semantic_hash": ""
   },
   "backend/controllers/systemController.js": {
-    "mtime": 1782589777.908717,
-    "ast_hash": "b19ffeb703be7af1f7d0441716057657",
+    "mtime": 1782595932.314067,
+    "ast_hash": "031a2b25dd2b3c95b612ebd817f44c96",
     "semantic_hash": ""
   },
   "backend/controllers/taskController.js": {
@@ -205,8 +205,8 @@
     "semantic_hash": ""
   },
   "backend/db/schema.js": {
-    "mtime": 1782589666.4168682,
-    "ast_hash": "c6b6a62c68284ea027cf14895ee27ff1",
+    "mtime": 1782596553.0833473,
+    "ast_hash": "59bd33bd06e189f792983dedeb58bd4e",
     "semantic_hash": ""
   },
   "backend/middleware/rateLimiter.js": {
@@ -235,8 +235,8 @@
     "semantic_hash": ""
   },
   "backend/repositories/userRepository.js": {
-    "mtime": 1782589677.3056161,
-    "ast_hash": "aafbec4fbeaeba5b20c5731b7cb8c1ce",
+    "mtime": 1782595947.541312,
+    "ast_hash": "b9c2683f5347a1fcaa9176f1d8a63e01",
     "semantic_hash": ""
   },
   "backend/repositories/wikiRepository.js": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "backend/services/channelService.js": {
-    "mtime": 1782589719.7323587,
-    "ast_hash": "0b5e6ce141bbfcef493f713a0e73e7a9",
+    "mtime": 1782595923.0038216,
+    "ast_hash": "ff9acfe5ed73dad2bee4751d523667f7",
     "semantic_hash": ""
   },
   "backend/services/messageService.js": {
@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "backend/services/statsService.js": {
-    "mtime": 1782589708.2376492,
-    "ast_hash": "8fe9ad56339877de3261d4fdc5fd10ac",
+    "mtime": 1782595955.0741332,
+    "ast_hash": "1395c9d3c23bc76870f6b72247755362",
     "semantic_hash": ""
   },
   "backend/services/taskService.js": {

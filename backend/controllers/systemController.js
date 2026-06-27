@@ -5,13 +5,57 @@ import { invalidateCache } from '../db/redis.js';
 import { StatsService } from '../services/statsService.js';
 
 export class SystemController {
-  static health(req, res) {
-    res.json({
-      status: 'ok',
-      uptime: Math.floor(process.uptime()),
-      timestamp: new Date().toISOString(),
-      env: config.env,
-    });
+  static async health(req, res) {
+    let dbStatus = 'untested';
+    let redisStatusDetail = 'untested';
+    let isHealthy = true;
+
+    try {
+      await pool.query('SELECT 1;');
+      dbStatus = 'healthy';
+    } catch (err) {
+      dbStatus = 'unhealthy';
+      isHealthy = false;
+      console.error('[Health Check] DB check failed:', err.message);
+    }
+
+    try {
+      const { redisStatus } = await import('../db/redis.js');
+      if (config.redisUrl) {
+        if (redisStatus && redisStatus.isConnected) {
+          redisStatusDetail = 'healthy';
+        } else {
+          redisStatusDetail = 'unhealthy';
+          isHealthy = false;
+        }
+      } else {
+        redisStatusDetail = 'disabled';
+      }
+    } catch (err) {
+      redisStatusDetail = 'unhealthy';
+      isHealthy = false;
+      console.error('[Health Check] Redis check failed:', err.message);
+    }
+
+    if (isHealthy) {
+      res.json({
+        status: 'ok',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+        env: config.env,
+        db: dbStatus,
+        redis: redisStatusDetail,
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+        env: config.env,
+        db: dbStatus,
+        redis: redisStatusDetail,
+      });
+    }
   }
 
   static async reset(req, res) {

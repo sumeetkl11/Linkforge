@@ -47,6 +47,7 @@ export interface Channel {
   id: string;
   name: string;
   description: string;
+  workspaceId?: string;
 }
 
 export interface Message {

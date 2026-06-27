@@ -1,5 +1,5 @@
 import { ChannelRepository } from '../repositories/channelRepository.js';
-import { getCache, setCache } from '../db/redis.js';
+import { getCache, setCache, invalidateCache } from '../db/redis.js';
 
 export class ChannelService {
   static async getChannels() {
@@ -20,6 +20,8 @@ export class ChannelService {
       description,
       workspaceId
     });
+
+    await invalidateCache('syncforge:channels');
 
     if (io) {
       io.emit('channel_created', createdChannel);

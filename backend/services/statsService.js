@@ -12,8 +12,8 @@ export class StatsService {
     _dashboardStatsTimer = setTimeout(async () => {
       _dashboardStatsTimer = null;
       try {
-        const userCount = await UserRepository.getCount();
-        const activeUsers = userCount.toLocaleString();
+        const onlineCount = await UserRepository.getOnlineCount();
+        const activeUsers = onlineCount.toLocaleString();
 
         const openTasks = await TaskRepository.getOpenCount();
 

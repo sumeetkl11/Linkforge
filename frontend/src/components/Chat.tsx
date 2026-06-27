@@ -8,13 +8,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle, Copy, Check } from 'lucide-react';
 import { Channel, Message, User } from '../types';
 import { CHANNELS, INITIAL_MESSAGES, USERS } from '../data';
-import { fetchMessages, sendMessage, fetchChannels, fetchUsers } from '../api';
+import { fetchMessages, sendMessage, fetchChannels, fetchUsers, createChannel } from '../api';
 
 import { socket } from '../utils/socket';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import rehypeSanitize from 'rehype-sanitize';
 
 interface ChatProps {
   currentUser: User | null;
@@ -256,19 +257,11 @@ export default function Chat({ currentUser }: ChatProps) {
     if (!newChannelName.trim()) return;
 
     try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newChannelName.trim(),
-          description: 'A new channel in the workspace.',
-          workspaceId: 'w1'
-        })
+      await createChannel({
+        name: newChannelName.trim(),
+        description: 'A new channel in the workspace.',
+        workspaceId: 'w1'
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create channel');
-      }
 
       setIsCreateModalOpen(false);
       setNewChannelName('');
@@ -607,6 +600,7 @@ export default function Chat({ currentUser }: ChatProps) {
                     
                     <div className="mt-1 text-xs text-on-surface leading-relaxed markdown-content">
                       <ReactMarkdown
+                        rehypePlugins={[rehypeSanitize]}
                         components={{
                           code({ className, children, ...props }: any) {
                             const { ref, ...rest } = props;
@@ -628,9 +622,11 @@ export default function Chat({ currentUser }: ChatProps) {
                             );
                           },
                           img({ src, alt, ...props }: any) {
+                            const isSafe = src && !src.trim().toLowerCase().startsWith('javascript:');
+                            const safeSrc = isSafe ? src : '';
                             return (
                               <img
-                                src={src}
+                                src={safeSrc}
                                 alt={alt || 'Image Attachment'}
                                 style={{
                                   maxWidth: '100%',
@@ -644,9 +640,11 @@ export default function Chat({ currentUser }: ChatProps) {
                             );
                           },
                           a({ href, children, ...props }: any) {
+                            const isSafe = href && !href.trim().toLowerCase().startsWith('javascript:');
+                            const safeHref = isSafe ? href : '#';
                             return (
                               <a
-                                href={href}
+                                href={safeHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"

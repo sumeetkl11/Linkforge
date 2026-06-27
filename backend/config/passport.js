@@ -59,6 +59,7 @@ if (config.google.clientId && config.google.clientSecret) {
         clientID: config.google.clientId,
         clientSecret: config.google.clientSecret,
         callbackURL: config.google.callbackUrl,
+        state: true,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -96,6 +97,7 @@ if (config.github.clientId && config.github.clientSecret) {
         clientSecret: config.github.clientSecret,
         callbackURL: config.github.callbackUrl,
         scope: ['user:email'],
+        state: true,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {

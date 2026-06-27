@@ -1,4 +1,5 @@
 import { hashPassword } from '../utils/password.js';
+import { isProduction } from '../config/env.js';
 
 export async function initializeDatabase(pool) {
   try {
@@ -37,11 +38,21 @@ export async function initializeDatabase(pool) {
         name VARCHAR(100) NOT NULL,
         description TEXT,
         workspace_id VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (workspace_id, name)
       );
 
       ALTER TABLE channels ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(50);
       ALTER TABLE channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_channel_name_workspace'
+        ) THEN
+          ALTER TABLE channels ADD CONSTRAINT uq_channel_name_workspace UNIQUE (workspace_id, name);
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS messages (
         id VARCHAR(50) PRIMARY KEY,
@@ -98,6 +109,10 @@ export async function initializeDatabase(pool) {
       CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages((user_data->>'id'));
       CREATE INDEX IF NOT EXISTS idx_activities_id_desc ON activities(id DESC);
       CREATE INDEX IF NOT EXISTS idx_wiki_parent_id ON wiki_pages(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_channels_workspace_id ON channels(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_workspace_id ON messages(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_messages_dm_composite ON messages(receiver_id, (user_data->>'id'));
     `);
     console.log('Database tables and indexes verified successfully.');
   } catch (err) {
@@ -107,6 +122,10 @@ export async function initializeDatabase(pool) {
 }
 
 export async function seedDatabase(pool, seedDefaultPassword) {
+  if (isProduction()) {
+    console.log('Production environment detected — skipping automatic database seeding.');
+    return;
+  }
   try {
     const userCount = await pool.query('SELECT COUNT(*) FROM users');
     if (parseInt(userCount.rows[0].count) === 0) {

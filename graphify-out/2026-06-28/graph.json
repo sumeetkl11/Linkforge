@@ -217,7 +217,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "controllers_channelcontroller",
-      "community": 5,
+      "community": 20,
       "norm_label": "channelcontroller.js"
     },
     {
@@ -227,7 +227,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "controllers_channelcontroller_channelcontroller",
-      "community": 5,
+      "community": 20,
       "norm_label": "channelcontroller"
     },
     {
@@ -237,7 +237,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "controllers_channelcontroller_channelcontroller_getchannels",
-      "community": 5,
+      "community": 20,
       "norm_label": ".getchannels()"
     },
     {
@@ -247,7 +247,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "controllers_channelcontroller_channelcontroller_createchannel",
-      "community": 5,
+      "community": 20,
       "norm_label": ".createchannel()"
     },
     {
@@ -257,7 +257,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "controllers_messagecontroller",
-      "community": 5,
+      "community": 13,
       "norm_label": "messagecontroller.js"
     },
     {
@@ -267,7 +267,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "controllers_messagecontroller_messagecontroller",
-      "community": 5,
+      "community": 13,
       "norm_label": "messagecontroller"
     },
     {
@@ -277,7 +277,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "controllers_messagecontroller_messagecontroller_getmessages",
-      "community": 5,
+      "community": 13,
       "norm_label": ".getmessages()"
     },
     {
@@ -287,7 +287,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "controllers_messagecontroller_messagecontroller_createmessage",
-      "community": 5,
+      "community": 13,
       "norm_label": ".createmessage()"
     },
     {
@@ -317,14 +317,14 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "controllers_systemcontroller_systemcontroller_health",
-      "community": 0,
+      "community": 2,
       "norm_label": ".health()"
     },
     {
       "label": ".reset()",
       "file_type": "code",
       "source_file": "backend/controllers/systemController.js",
-      "source_location": "L17",
+      "source_location": "L61",
       "_origin": "ast",
       "id": "controllers_systemcontroller_systemcontroller_reset",
       "community": 0,
@@ -337,7 +337,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "controllers_taskcontroller",
-      "community": 5,
+      "community": 2,
       "norm_label": "taskcontroller.js"
     },
     {
@@ -347,7 +347,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "controllers_taskcontroller_taskcontroller",
-      "community": 5,
+      "community": 2,
       "norm_label": "taskcontroller"
     },
     {
@@ -357,7 +357,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "controllers_taskcontroller_taskcontroller_gettasks",
-      "community": 5,
+      "community": 2,
       "norm_label": ".gettasks()"
     },
     {
@@ -367,7 +367,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "controllers_taskcontroller_taskcontroller_createtask",
-      "community": 5,
+      "community": 2,
       "norm_label": ".createtask()"
     },
     {
@@ -377,7 +377,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "controllers_taskcontroller_taskcontroller_updatetask",
-      "community": 5,
+      "community": 2,
       "norm_label": ".updatetask()"
     },
     {
@@ -387,7 +387,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "controllers_taskcontroller_taskcontroller_deletetask",
-      "community": 5,
+      "community": 2,
       "norm_label": ".deletetask()"
     },
     {
@@ -477,7 +477,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "controllers_wikicontroller",
-      "community": 5,
+      "community": 20,
       "norm_label": "wikicontroller.js"
     },
     {
@@ -487,7 +487,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "controllers_wikicontroller_wikicontroller",
-      "community": 5,
+      "community": 20,
       "norm_label": "wikicontroller"
     },
     {
@@ -497,7 +497,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "controllers_wikicontroller_wikicontroller_getwikipages",
-      "community": 5,
+      "community": 20,
       "norm_label": ".getwikipages()"
     },
     {
@@ -507,7 +507,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "controllers_wikicontroller_wikicontroller_savewikipage",
-      "community": 5,
+      "community": 20,
       "norm_label": ".savewikipage()"
     },
     {
@@ -517,7 +517,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "controllers_wikicontroller_wikicontroller_deletewikipage",
-      "community": 5,
+      "community": 20,
       "norm_label": ".deletewikipage()"
     },
     {
@@ -567,7 +567,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "db_redis_redisstatus",
-      "community": 5,
+      "community": 2,
       "norm_label": "redisstatus"
     },
     {
@@ -577,7 +577,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "db_redis_connectredis",
-      "community": 5,
+      "community": 2,
       "norm_label": "connectredis()"
     },
     {
@@ -647,7 +647,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "middleware_auth",
-      "community": 5,
+      "community": 20,
       "norm_label": "auth.js"
     },
     {
@@ -657,7 +657,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "middleware_auth_requireauth",
-      "community": 5,
+      "community": 20,
       "norm_label": "requireauth()"
     },
     {
@@ -667,7 +667,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "middleware_auth_optionalauth",
-      "community": 5,
+      "community": 20,
       "norm_label": "optionalauth()"
     },
     {
@@ -677,7 +677,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "middleware_ratelimiter",
-      "community": 5,
+      "community": 20,
       "norm_label": "ratelimiter.js"
     },
     {
@@ -687,7 +687,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "middleware_ratelimiter_apilimiter",
-      "community": 5,
+      "community": 20,
       "norm_label": "apilimiter"
     },
     {
@@ -697,7 +697,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "middleware_ratelimiter_authlimiter",
-      "community": 5,
+      "community": 20,
       "norm_label": "authlimiter"
     },
     {
@@ -1311,6 +1311,16 @@
       "norm_label": ".getcount()"
     },
     {
+      "label": ".getOnlineCount()",
+      "file_type": "code",
+      "source_file": "backend/repositories/userRepository.js",
+      "source_location": "L145",
+      "_origin": "ast",
+      "id": "repositories_userrepository_userrepository_getonlinecount",
+      "community": 13,
+      "norm_label": ".getonlinecount()"
+    },
+    {
       "label": "wikiRepository.js",
       "file_type": "code",
       "source_file": "backend/repositories/wikiRepository.js",
@@ -1377,7 +1387,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_activities",
-      "community": 5,
+      "community": 20,
       "norm_label": "activities.js"
     },
     {
@@ -1387,7 +1397,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_activities_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1397,7 +1407,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_auth",
-      "community": 5,
+      "community": 20,
       "norm_label": "auth.js"
     },
     {
@@ -1407,7 +1417,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "routes_auth_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1417,7 +1427,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "routes_auth_oauthcallback",
-      "community": 5,
+      "community": 20,
       "norm_label": "oauthcallback()"
     },
     {
@@ -1427,7 +1437,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_channels",
-      "community": 5,
+      "community": 20,
       "norm_label": "channels.js"
     },
     {
@@ -1437,7 +1447,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_channels_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1447,7 +1457,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_messages",
-      "community": 5,
+      "community": 20,
       "norm_label": "messages.js"
     },
     {
@@ -1457,7 +1467,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_messages_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1467,7 +1477,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_system",
-      "community": 5,
+      "community": 20,
       "norm_label": "system.js"
     },
     {
@@ -1477,7 +1487,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_system_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1487,7 +1497,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_tasks",
-      "community": 5,
+      "community": 20,
       "norm_label": "tasks.js"
     },
     {
@@ -1497,7 +1507,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_tasks_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1507,7 +1517,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_users",
-      "community": 5,
+      "community": 20,
       "norm_label": "users.js"
     },
     {
@@ -1517,7 +1527,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "routes_users_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1527,7 +1537,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_wiki",
-      "community": 5,
+      "community": 20,
       "norm_label": "wiki.js"
     },
     {
@@ -1537,7 +1547,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_wiki_router",
-      "community": 5,
+      "community": 20,
       "norm_label": "router"
     },
     {
@@ -1567,7 +1577,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_server",
-      "community": 5,
+      "community": 20,
       "norm_label": "server.js"
     },
     {
@@ -1577,7 +1587,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "backend_server_filename",
-      "community": 5,
+      "community": 20,
       "norm_label": "__filename"
     },
     {
@@ -1587,7 +1597,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_server_dirname",
-      "community": 5,
+      "community": 20,
       "norm_label": "__dirname"
     },
     {
@@ -1597,7 +1607,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "backend_server_app",
-      "community": 5,
+      "community": 20,
       "norm_label": "app"
     },
     {
@@ -1607,7 +1617,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "backend_server_server",
-      "community": 5,
+      "community": 20,
       "norm_label": "server"
     },
     {
@@ -1617,7 +1627,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "backend_server_io",
-      "community": 1,
+      "community": 20,
       "norm_label": "io"
     },
     {
@@ -1634,10 +1644,10 @@
       "label": "gracefulShutdown()",
       "file_type": "code",
       "source_file": "backend/server.js",
-      "source_location": "L148",
+      "source_location": "L153",
       "_origin": "ast",
       "id": "backend_server_gracefulshutdown",
-      "community": 5,
+      "community": 20,
       "norm_label": "gracefulshutdown()"
     },
     {
@@ -1867,7 +1877,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "services_userservice_userservice",
-      "community": 2,
+      "community": 5,
       "norm_label": "userservice"
     },
     {
@@ -1877,7 +1887,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "services_userservice_userservice_sanitizeuser",
-      "community": 2,
+      "community": 5,
       "norm_label": ".sanitizeuser()"
     },
     {
@@ -1887,7 +1897,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "services_userservice_userservice_getuserbyid",
-      "community": 2,
+      "community": 5,
       "norm_label": ".getuserbyid()"
     },
     {
@@ -1907,7 +1917,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "services_userservice_userservice_registeruser",
-      "community": 2,
+      "community": 5,
       "norm_label": ".registeruser()"
     },
     {
@@ -1917,7 +1927,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "services_userservice_userservice_loginuser",
-      "community": 2,
+      "community": 5,
       "norm_label": ".loginuser()"
     },
     {
@@ -1927,7 +1937,7 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "services_userservice_userservice_updateuser",
-      "community": 2,
+      "community": 5,
       "norm_label": ".updateuser()"
     },
     {
@@ -1937,7 +1947,7 @@
       "source_location": "L94",
       "_origin": "ast",
       "id": "services_userservice_userservice_updateavatar",
-      "community": 2,
+      "community": 5,
       "norm_label": ".updateavatar()"
     },
     {
@@ -1997,7 +2007,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "utils_jwt",
-      "community": 5,
+      "community": 20,
       "norm_label": "jwt.js"
     },
     {
@@ -2007,7 +2017,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "utils_jwt_signtoken",
-      "community": 5,
+      "community": 20,
       "norm_label": "signtoken()"
     },
     {
@@ -2017,7 +2027,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "utils_jwt_verifytoken",
-      "community": 5,
+      "community": 20,
       "norm_label": "verifytoken()"
     },
     {
@@ -2161,10 +2171,20 @@
       "norm_label": "@vitejs/plugin-react"
     },
     {
-      "label": "lucide-react",
+      "label": "emoji-picker-react",
       "file_type": "code",
       "source_file": "frontend/package.json",
       "source_location": "L16",
+      "_origin": "ast",
+      "id": "frontend_package_dependencies_emoji_picker_react",
+      "community": 4,
+      "norm_label": "emoji-picker-react"
+    },
+    {
+      "label": "lucide-react",
+      "file_type": "code",
+      "source_file": "frontend/package.json",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "frontend_package_dependencies_lucide_react",
       "community": 4,
@@ -2174,7 +2194,7 @@
       "label": "motion",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L17",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "frontend_package_dependencies_motion",
       "community": 4,
@@ -2184,7 +2204,7 @@
       "label": "react",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L18",
+      "source_location": "L19",
       "_origin": "ast",
       "id": "frontend_package_dependencies_react",
       "community": 4,
@@ -2194,7 +2214,7 @@
       "label": "react-dom",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L19",
+      "source_location": "L20",
       "_origin": "ast",
       "id": "frontend_package_dependencies_react_dom",
       "community": 4,
@@ -2204,7 +2224,7 @@
       "label": "react-markdown",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L20",
+      "source_location": "L21",
       "_origin": "ast",
       "id": "frontend_package_dependencies_react_markdown",
       "community": 4,
@@ -2214,7 +2234,7 @@
       "label": "react-syntax-highlighter",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L21",
+      "source_location": "L22",
       "_origin": "ast",
       "id": "frontend_package_dependencies_react_syntax_highlighter",
       "community": 4,
@@ -2224,7 +2244,7 @@
       "label": "socket.io-client",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L22",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "frontend_package_dependencies_socket_io_client",
       "community": 4,
@@ -2234,7 +2254,7 @@
       "label": "devDependencies",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L24",
+      "source_location": "L25",
       "_origin": "ast",
       "id": "frontend_package_devdependencies",
       "community": 4,
@@ -2244,7 +2264,7 @@
       "label": "@types/node",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L25",
+      "source_location": "L26",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_types_node",
       "community": 4,
@@ -2254,7 +2274,7 @@
       "label": "@types/react",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L26",
+      "source_location": "L27",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_types_react",
       "community": 4,
@@ -2264,7 +2284,7 @@
       "label": "@types/react-dom",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L27",
+      "source_location": "L28",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_types_react_dom",
       "community": 4,
@@ -2274,7 +2294,7 @@
       "label": "@types/react-syntax-highlighter",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L28",
+      "source_location": "L29",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_types_react_syntax_highlighter",
       "community": 4,
@@ -2284,7 +2304,7 @@
       "label": "autoprefixer",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L29",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_autoprefixer",
       "community": 4,
@@ -2294,7 +2314,7 @@
       "label": "tailwindcss",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L30",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_tailwindcss",
       "community": 4,
@@ -2304,7 +2324,7 @@
       "label": "typescript",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L31",
+      "source_location": "L32",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_typescript",
       "community": 4,
@@ -2314,7 +2334,7 @@
       "label": "vite",
       "file_type": "code",
       "source_file": "frontend/package.json",
-      "source_location": "L32",
+      "source_location": "L33",
       "_origin": "ast",
       "id": "frontend_package_devdependencies_vite",
       "community": 4,
@@ -2674,7 +2694,7 @@
       "label": "ChatProps",
       "file_type": "code",
       "source_file": "frontend/src/components/Chat.tsx",
-      "source_location": "L18",
+      "source_location": "L19",
       "_origin": "ast",
       "id": "components_chat_chatprops",
       "community": 1,
@@ -2684,7 +2704,7 @@
       "label": "Chat()",
       "file_type": "code",
       "source_file": "frontend/src/components/Chat.tsx",
-      "source_location": "L22",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "components_chat_chat",
       "community": 1,
@@ -3224,7 +3244,7 @@
       "label": "Message",
       "file_type": "code",
       "source_file": "frontend/src/types.ts",
-      "source_location": "L52",
+      "source_location": "L53",
       "_origin": "ast",
       "id": "src_types_message",
       "community": 1,
@@ -3234,7 +3254,7 @@
       "label": "Activity",
       "file_type": "code",
       "source_file": "frontend/src/types.ts",
-      "source_location": "L69",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "src_types_activity",
       "community": 1,
@@ -3244,7 +3264,7 @@
       "label": "WikiPage",
       "file_type": "code",
       "source_file": "frontend/src/types.ts",
-      "source_location": "L78",
+      "source_location": "L79",
       "_origin": "ast",
       "id": "src_types_wikipage",
       "community": 1,
@@ -3254,7 +3274,7 @@
       "label": "AppNotification",
       "file_type": "code",
       "source_file": "frontend/src/types.ts",
-      "source_location": "L87",
+      "source_location": "L88",
       "_origin": "ast",
       "id": "src_types_appnotification",
       "community": 1,
@@ -4489,6 +4509,17 @@
       "target": "controllers_systemcontroller_systemcontroller"
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/controllers/systemController.js",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "controllers_systemcontroller_systemcontroller_health",
+      "target": "db_redis",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -5311,6 +5342,28 @@
       "weight": 1.0,
       "source": "services_wikiservice_wikiservice_getwikipages",
       "target": "db_redis_setcache"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/services/channelService.js",
+      "source_location": "L2",
+      "weight": 1.0,
+      "source": "services_channelservice",
+      "target": "db_redis_invalidatecache",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/services/channelService.js",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "services_channelservice_channelservice_createchannel",
+      "target": "db_redis_invalidatecache"
     },
     {
       "relation": "imports",
@@ -6545,6 +6598,16 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "backend/repositories/userRepository.js",
+      "source_location": "L145",
+      "weight": 1.0,
+      "source": "repositories_userrepository_userrepository",
+      "target": "repositories_userrepository_userrepository_getonlinecount",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/repositories/userRepository.js",
       "source_location": "L121",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -7700,6 +7763,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/package.json",
+      "source_location": "L16",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "frontend_package_dependencies",
+      "target": "frontend_package_dependencies_emoji_picker_react"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend/package.json",
       "source_location": "L13",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -7752,9 +7825,9 @@
       "source_file": "frontend/package.json",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "frontend_package_dependencies",
-      "target": "frontend_package_dependencies_react_markdown",
-      "confidence_score": 1.0
+      "target": "frontend_package_dependencies_react_markdown"
     },
     {
       "relation": "contains",
@@ -7762,9 +7835,9 @@
       "source_file": "frontend/package.json",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "frontend_package_dependencies",
-      "target": "frontend_package_dependencies_react_syntax_highlighter",
-      "confidence_score": 1.0
+      "target": "frontend_package_dependencies_react_syntax_highlighter"
     },
     {
       "relation": "contains",
@@ -7852,9 +7925,9 @@
       "source_file": "frontend/package.json",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "frontend_package_devdependencies",
-      "target": "frontend_package_devdependencies_types_react_syntax_highlighter",
-      "confidence_score": 1.0
+      "target": "frontend_package_devdependencies_types_react_syntax_highlighter"
     },
     {
       "relation": "contains",
@@ -8888,6 +8961,17 @@
       "confidence_score": 1.0,
       "source": "components_chat",
       "target": "src_api_fetchchannels"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend/src/components/Chat.tsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "components_chat",
+      "target": "src_api_createchannel",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -10477,5 +10561,5 @@
       "source_file": "README.md"
     }
   ],
-  "built_at_commit": "7a4c00bd8b67ee659d35c097465d210093de4406"
+  "built_at_commit": "bb294a116a0336316d64953285f4a9252a7df76b"
 }

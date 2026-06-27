@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import passport from 'passport';
 import { fileURLToPath } from 'url';
+import session from 'express-session';
 
 import { config, isProduction } from './config/env.js';
 import { pool } from './db/pool.js';
@@ -43,6 +44,19 @@ app.use(cors({
 // Request logging
 app.use(morgan(isProduction() ? 'combined' : 'dev'));
 app.use(express.json());
+
+// Session support for OAuth CSRF state verification
+app.use(
+  session({
+    secret: config.jwtSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: isProduction(),
+      sameSite: 'lax',
+    },
+  })
+);
 
 // Global rate limiter for API routes
 app.use('/api', apiLimiter);
@@ -88,6 +102,18 @@ app.use(activityRoutes);
 app.use(wikiRoutes);
 app.use(systemRoutes);
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('[Unhandled Exception] Global handler caught:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: {
+      message: err.message || 'Internal Server Error',
+      status
+    }
+  });
+});
+
 // ── Start Server and Services ───────────────────────────────────────────────
 async function startServer() {
   await initializeDatabase(pool);
@@ -119,8 +145,13 @@ async function startServer() {
     });
 
     socket.on('user:join', (userId) => {
-      socket.join(userId);
-      console.log(`[Socket.io] 👤 ${socket.id} registered for user: ${userId}`);
+      const authUserId = socket.user?.id;
+      if (!authUserId || authUserId !== userId) {
+        console.warn(`[Socket.io] ⚠️ Rejected user:join. Socket user (${authUserId}) does not match requested userId (${userId})`);
+        return;
+      }
+      socket.join(authUserId);
+      console.log(`[Socket.io] 👤 ${socket.id} registered for user: ${authUserId}`);
     });
 
     socket.on('disconnect', (reason) => {

@@ -141,4 +141,9 @@ export class UserRepository {
     const res = await pool.query('SELECT COUNT(*) FROM users');
     return parseInt(res.rows[0].count);
   }
+
+  static async getOnlineCount() {
+    const res = await pool.query("SELECT COUNT(*) FROM users WHERE status = 'Online'");
+    return parseInt(res.rows[0].count);
+  }
 }

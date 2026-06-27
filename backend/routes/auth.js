@@ -33,7 +33,7 @@ router.get(
 
 router.get(
   '/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
+  passport.authenticate('google', { failureRedirect: `${config.frontendUrl}/login?error=auth_failed`, session: false }),
   oauthCallback
 );
 
@@ -45,7 +45,7 @@ router.get(
 
 router.get(
   '/api/auth/github/callback',
-  passport.authenticate('github', { failureRedirect: '/login', session: false }),
+  passport.authenticate('github', { failureRedirect: `${config.frontendUrl}/login?error=auth_failed`, session: false }),
   oauthCallback
 );
 
