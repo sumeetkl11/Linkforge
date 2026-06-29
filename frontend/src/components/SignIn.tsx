@@ -4,23 +4,31 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Mail, Lock, ArrowRight, Check, Github, Cpu, Fingerprint, Sparkles, Chrome } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Terminal, Mail, Lock, ArrowRight, Check, Github, Cpu, Fingerprint, Sparkles, Chrome, AlertTriangle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 import { loginUser, createUser } from '../api';
+import { apiUrl } from '../config';
 import { User } from '../types';
 
 interface SignInProps {
   onLogin: (user: User) => void;
+  initialError?: string | null;
 }
 
-export default function SignIn({ onLogin }: SignInProps) {
+export default function SignIn({ onLogin, initialError }: SignInProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (initialError) {
+      setErrorMsg(initialError);
+    }
+  }, [initialError]);
 
   // High performance Canvas particle animation in the left pane
   useEffect(() => {
@@ -162,7 +170,8 @@ export default function SignIn({ onLogin }: SignInProps) {
           proficiency: 0,
           username
         };
-        const createdUser = await createUser(newUser);
+        await createUser(newUser);
+        const createdUser = await loginUser(newUser.email);
         setIsSubmitting(false);
         onLogin(createdUser);
       } else {
@@ -197,6 +206,46 @@ export default function SignIn({ onLogin }: SignInProps) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-surface">
+      <AnimatePresence>
+        {errorMsg && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              className="w-full max-w-sm bg-surface-container-low border border-error/35 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden"
+            >
+              <div className="flex items-start gap-3 p-5 border-b border-outline-variant/50">
+                <div className="w-9 h-9 rounded-xl bg-error/15 text-error flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-on-surface font-sans">Access blocked</h3>
+                  <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{errorMsg}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg(null)}
+                  className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer"
+                  aria-label="Close error"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="p-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg(null)}
+                  className="px-4 py-2 bg-primary hover:bg-primary/95 text-on-primary rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* LEFT PANEL: 60% Width Branding Presentation */}
       <div className="hidden lg:flex lg:w-3/5 h-full relative flex-col justify-between p-12 overflow-hidden border-r border-outline-variant/60">
         <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none" />
@@ -269,7 +318,7 @@ export default function SignIn({ onLogin }: SignInProps) {
           <div className="grid grid-cols-2 gap-3">
             <button 
               type="button"
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/github'}
+              onClick={() => window.location.href = apiUrl('/api/auth/github')}
               className="flex items-center justify-center gap-2 py-2 border border-outline-variant hover:border-primary rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low/20 transition-all cursor-pointer"
             >
               <Github size={14} />
@@ -277,7 +326,7 @@ export default function SignIn({ onLogin }: SignInProps) {
             </button>
             <button 
               type="button"
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+              onClick={() => window.location.href = apiUrl('/api/auth/google')}
               className="flex items-center justify-center gap-2 py-2 border border-outline-variant hover:border-primary rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low/20 transition-all cursor-pointer"
             >
               <Chrome size={14} className="text-primary" />
@@ -293,11 +342,6 @@ export default function SignIn({ onLogin }: SignInProps) {
 
           {/* Credentials input Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {errorMsg && (
-              <div className="p-3 bg-error/15 border border-error/30 text-error rounded-lg text-xs font-semibold">
-                {errorMsg}
-              </div>
-            )}
             {/* Email Field */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant font-sans">Developer Email</label>

@@ -5,6 +5,22 @@
 
 import { Task, Activity, Channel, Message, User, WikiPage } from './types';
 
+export interface TaskAiDraft {
+  title: string;
+  description: string;
+  priority: 'Low' | 'Medium' | 'High';
+  tags: string[];
+  assigneeId?: string;
+}
+
+function authHeaders(): HeadersInit {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export async function fetchTasks(): Promise<Task[]> {
   const res = await fetch('/api/tasks');
   if (!res.ok) throw new Error('Failed to fetch tasks');
@@ -73,6 +89,7 @@ export async function createChannel(channel: Omit<Channel, 'id'>): Promise<Chann
 }
 
 export async function fetchMessages(chatId: string, type?: 'channel' | 'dm', currentUserId?: string): Promise<Message[]> {
+  if (!chatId) return [];
   let url = `/api/messages/${chatId}`;
   if (type) {
     url += `?type=${type}`;
@@ -102,14 +119,106 @@ export async function fetchUsers(excludeId?: string): Promise<User[]> {
   return res.json();
 }
 
+export async function generateTaskDraft(input: {
+  prompt: string;
+  title?: string;
+  description?: string;
+  priority?: Task['priority'];
+  tags?: string[];
+  members?: User[];
+}): Promise<TaskAiDraft> {
+  const res = await fetch('/api/ai/tasks/draft', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to generate task with AI');
+  }
+  return res.json();
+}
+
+export async function validateSession(): Promise<User> {
+  const res = await fetch('/api/session', {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Session expired or account access has been revoked.');
+  }
+  const data = await res.json();
+  return data.user;
+}
+
 export async function createUser(user: User): Promise<User> {
   const res = await fetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(user),
   });
-  if (!res.ok) throw new Error('Failed to save user');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to save user');
+  }
   return res.json();
+}
+
+export async function updateUserAsAdmin(user: User): Promise<User> {
+  const res = await fetch(`/api/admin/users/${user.id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(user),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to update user');
+  }
+  return res.json();
+}
+
+export async function deleteUser(userId: string): Promise<boolean> {
+  const res = await fetch(`/api/users/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to delete user');
+  }
+  const data = await res.json();
+  return data.success;
+}
+
+export async function banUser(
+  userId: string,
+  reason?: string,
+  options?: { banType?: 'shadow' | 'permanent'; durationDays?: number }
+): Promise<{ success: boolean; email: string }> {
+  const res = await fetch(`/api/users/${userId}/ban`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ reason, ...options }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to ban user');
+  }
+  return res.json();
+}
+
+export async function sendInviteEmail(user: User): Promise<User> {
+  const res = await fetch('/api/invites', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(user),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to send invite email');
+  }
+  const data = await res.json();
+  return data.user;
 }
 
 export async function resetDatabase(): Promise<boolean> {
@@ -153,9 +262,13 @@ export async function loginUser(email: string): Promise<User> {
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const errData = await res.json();
+    const errData = await res.json().catch(() => ({}));
     throw new Error(errData.error || 'Authentication failed');
   }
-  return res.json();
+  const data = await res.json();
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+  }
+  return data.user || data;
 }
 

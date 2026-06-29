@@ -4,6 +4,54 @@ import jwt from 'jsonwebtoken';
 
 const router = Router();
 
+function getFrontendUrl() {
+  return (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+}
+
+function getJwtSecret() {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || !jwtSecret.trim()) {
+    throw new Error('Missing required environment variable: JWT_SECRET');
+  }
+  return jwtSecret.trim();
+}
+
+function redirectWithAuthError(res, message) {
+  const frontendUrl = getFrontendUrl();
+  res.redirect(`${frontendUrl}?auth_error=${encodeURIComponent(message)}`);
+}
+
+function oauthCallback(provider) {
+  return [
+    (req, res, next) => {
+      passport.authenticate(provider, { session: false }, (err, user) => {
+        if (err) {
+          return redirectWithAuthError(res, err.message || 'Authentication failed');
+        }
+        if (!user) {
+          return redirectWithAuthError(res, 'Authentication failed');
+        }
+        req.user = user;
+        return next();
+      })(req, res, next);
+    },
+    (req, res, next) => {
+      try {
+        const user = req.user;
+        const token = jwt.sign(
+          { id: user.id },
+          getJwtSecret(),
+          { expiresIn: '7d' }
+        );
+
+        res.redirect(`${getFrontendUrl()}?token=${encodeURIComponent(token)}`);
+      } catch (err) {
+        next(err);
+      }
+    }
+  ];
+}
+
 // --- Google OAuth ---
 router.get(
   '/api/auth/google',
@@ -12,23 +60,7 @@ router.get(
 
 router.get(
   '/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
-  (req, res) => {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication failed' });
-    }
-    
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key_123456';
-    const token = jwt.sign(
-      { id: user.id },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
-    
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}?token=${token}`);
-  }
+  ...oauthCallback('google')
 );
 
 // --- GitHub OAuth ---
@@ -39,23 +71,7 @@ router.get(
 
 router.get(
   '/api/auth/github/callback',
-  passport.authenticate('github', { failureRedirect: '/login', session: false }),
-  (req, res) => {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication failed' });
-    }
-    
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key_123456';
-    const token = jwt.sign(
-      { id: user.id },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
-    
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}?token=${token}`);
-  }
+  ...oauthCallback('github')
 );
 
 export default router;

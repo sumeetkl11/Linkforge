@@ -17,9 +17,9 @@ import TaskDetailsModal from './components/TaskDetailsModal';
 import Settings from './components/Settings';
 import UserProfile from './components/UserProfile';
 import Wiki from './components/Wiki';
-import { Task, Activity, User } from './types';
+import { Task, Activity, User, Message, AppNotification } from './types';
 import { INITIAL_TASKS, RECENT_ACTIVITIES } from './data';
-import { fetchTasks, fetchActivities, fetchUsers, resetDatabase } from './api';
+import { fetchTasks, fetchActivities, fetchUsers, resetDatabase, validateSession, fetchChannels } from './api';
 import { socket } from './utils/socket';
 
 export default function App() {
@@ -31,6 +31,9 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
 
   // Auto-clear Toast
@@ -47,15 +50,40 @@ export default function App() {
     setToastMessage(msg);
   };
 
+  const endSession = (message?: string) => {
+    socket.disconnect();
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setCurrentScreen('Dashboard');
+    setSelectedTaskId(null);
+    setTasks([]);
+    setActivities([]);
+    setIsLoadingUser(false);
+    if (message) {
+      setToastMessage(message);
+    }
+  };
+
   // Capture Google OAuth token from URL or localStorage on boot
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const authError = urlParams.get('auth_error');
+    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+
+    if (authError) {
+      window.history.replaceState({}, document.title, cleanUrl);
+      localStorage.removeItem('token');
+      setSignInError(authError);
+      setIsLoadingUser(false);
+      return;
+    }
+
     if (token) {
       localStorage.setItem('token', token);
       
       // Clean query parameters from URL for security
-      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
       
       setIsLoggedIn(true);
@@ -72,33 +100,15 @@ export default function App() {
   // Load user data on login
   useEffect(() => {
     if (isLoggedIn && !currentUser) {
-      const storedToken = localStorage.getItem('token');
-      let targetUserId: string | null = null;
-      
-      if (storedToken) {
-        try {
-          const parts = storedToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            targetUserId = payload.id;
-          }
-        } catch (e) {
-          console.error('Error decoding JWT token:', e);
-        }
-      }
-      
       setIsLoadingUser(true);
-      fetchUsers()
-        .then(users => {
-          const user = users.find(u => u.id === targetUserId) || users.find(u => u.id === 'u1') || users[0];
-          if (user) {
-            setCurrentUser(user);
-          }
+      validateSession()
+        .then(user => {
+          setCurrentUser(user);
           setIsLoadingUser(false);
         })
         .catch(err => {
-          console.error('Failed to load user credentials:', err);
-          setIsLoadingUser(false);
+          console.error('Failed to validate session:', err);
+          endSession((err as Error).message || 'Your session has expired. Please log in again.');
         });
     } else if (isLoggedIn && currentUser) {
       setIsLoadingUser(false);
@@ -116,6 +126,11 @@ export default function App() {
         console.error('Failed to load activities, using initial data:', err);
         setActivities(RECENT_ACTIVITIES);
       });
+      fetchChannels()
+        .then(channels => {
+          setChannelNames(Object.fromEntries(channels.map(channel => [channel.id, channel.name])));
+        })
+        .catch(err => console.error('Failed to load channels for notifications:', err));
     }
   }, [isLoggedIn, currentScreen]);
 
@@ -147,10 +162,44 @@ export default function App() {
       setTasks(prev => prev.filter(t => t.id !== deletedId));
     };
 
+    const handleAuthBanned = (payload?: { message?: string }) => {
+      endSession(payload?.message || 'Your account access has been revoked.');
+    };
+
+    const handleMessageReceived = (message: Message & { receiverId?: string | null; receiver_id?: string | null; channelId?: string | null; channel_id?: string | null; workspace_id?: string | null }) => {
+      if (!message?.user || message.user.id === currentUser.id) return;
+
+      const receiverId = message.receiverId || message.receiver_id;
+      const channelId = message.channelId || message.channel_id || message.workspace_id;
+      const isDirectMessage = Boolean(receiverId);
+      const senderLabel = message.user.name || 'A teammate';
+      const preview = message.content?.trim() ? `: ${message.content.trim().slice(0, 80)}` : '';
+      const text = isDirectMessage
+        ? `${senderLabel} sent you a direct message${preview}`
+        : `${senderLabel} posted in ${channelId ? `#${channelNames[channelId] || channelId}` : 'a channel'}${preview}`;
+
+      setNotifications(prev => [
+        {
+          id: `notif-${message.id}-${Date.now()}`,
+          text,
+          time: 'Just now',
+          read: false,
+          type: 'message' as const
+        },
+        ...prev
+      ].slice(0, 50));
+
+      if (currentScreen !== 'Chat') {
+        setToastMessage(text);
+      }
+    };
+
     socket.on('connect', handleConnect);
     socket.on('task:created', handleTaskCreated);
     socket.on('task:updated', handleTaskUpdated);
     socket.on('task:deleted', handleTaskDeleted);
+    socket.on('auth:banned', handleAuthBanned);
+    socket.on('message:received', handleMessageReceived);
 
     // If already connected (e.g. fast re-render), emit join immediately
     if (socket.connected) handleConnect();
@@ -160,6 +209,29 @@ export default function App() {
       socket.off('task:created', handleTaskCreated);
       socket.off('task:updated', handleTaskUpdated);
       socket.off('task:deleted', handleTaskDeleted);
+      socket.off('auth:banned', handleAuthBanned);
+      socket.off('message:received', handleMessageReceived);
+    };
+  }, [isLoggedIn, currentUser, currentScreen, channelNames]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser) return;
+
+    const checkSession = () => {
+      validateSession()
+        .then(user => setCurrentUser(user))
+        .catch(err => {
+          console.error('Session revoked:', err);
+          endSession((err as Error).message || 'Your session has expired. Please log in again.');
+        });
+    };
+
+    window.addEventListener('focus', checkSession);
+    const intervalId = window.setInterval(checkSession, 15000);
+
+    return () => {
+      window.removeEventListener('focus', checkSession);
+      window.clearInterval(intervalId);
     };
   }, [isLoggedIn, currentUser]);
 
@@ -193,12 +265,8 @@ export default function App() {
 
   // Logout trigger — disconnect socket cleanly
   const handleLogout = () => {
-    socket.disconnect();
     console.log('[Socket] 🔌 Disconnected on logout.');
-    localStorage.removeItem('token');
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setCurrentScreen('Dashboard');
+    endSession();
   };
 
   // Switch screens
@@ -217,9 +285,10 @@ export default function App() {
     return (
       <AnimatePresence mode="wait">
         <SignIn onLogin={(user) => {
+          setSignInError(null);
           setCurrentUser(user);
           setIsLoggedIn(true);
-        }} />
+        }} initialError={signInError} />
       </AnimatePresence>
     );
   }
@@ -257,10 +326,15 @@ export default function App() {
           currentUser={currentUser}
           onTriggerToast={handleTriggerToast}
           isLoading={isLoadingUser}
+          notifications={notifications}
+          onClearNotifications={() => setNotifications([])}
+          onMarkAllRead={() => setNotifications(prev => prev.map(notification => ({ ...notification, read: true })))}
         />
 
         {/* Dynamic Inner Panel Viewport */}
-        <div className="flex-1 overflow-y-auto bg-surface-container-lowest/20">
+        <div className={`flex-1 min-h-0 bg-surface-container-lowest/20 ${
+          currentScreen === 'Chat' ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}>
           <AnimatePresence mode="wait">
             {currentScreen === 'Dashboard' && (
               <Dashboard 
@@ -318,6 +392,7 @@ export default function App() {
             taskId={selectedTaskId}
             tasks={tasks}
             setTasks={setTasks}
+            currentUser={currentUser}
             onClose={() => setSelectedTaskId(null)}
           />
         )}

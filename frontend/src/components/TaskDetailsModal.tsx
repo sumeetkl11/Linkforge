@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Calendar, MessageSquare, Send, Tag, Shield, Clock, AlertCircle, CheckCircle } from 'lucide-react';
-import { Task, Comment } from '../types';
+import { Task, Comment, User } from '../types';
 import { USERS } from '../data';
 import { updateTask } from '../api';
 
@@ -14,49 +14,126 @@ interface TaskDetailsModalProps {
   taskId: string | null;
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  currentUser: User | null;
   onClose: () => void;
 }
 
-export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: TaskDetailsModalProps) {
+function getCommentDate(comment: Comment) {
+  const parsedTimestamp = Date.parse(comment.timestamp);
+  if (!Number.isNaN(parsedTimestamp)) {
+    return new Date(parsedTimestamp);
+  }
+
+  const idTimestamp = comment.id.match(/^comm-(\d+)$/)?.[1];
+  if (idTimestamp) {
+    const parsedIdTimestamp = Number(idTimestamp);
+    if (Number.isFinite(parsedIdTimestamp)) {
+      return new Date(parsedIdTimestamp);
+    }
+  }
+
+  return null;
+}
+
+function formatCommentTimestamp(comment: Comment) {
+  const commentDate = getCommentDate(comment);
+  if (!commentDate) return comment.timestamp;
+
+  const diffMs = Date.now() - commentDate.getTime();
+  if (diffMs < 0) return 'Just now';
+
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) return 'Just now';
+  if (diffMs < hour) {
+    const minutes = Math.floor(diffMs / minute);
+    return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (diffMs < day) {
+    const hours = Math.floor(diffMs / hour);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  if (diffMs < 7 * day) {
+    const days = Math.floor(diffMs / day);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
+  return commentDate.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: commentDate.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
+  });
+}
+
+export default function TaskDetailsModal({ taskId, tasks, setTasks, currentUser, onClose }: TaskDetailsModalProps) {
   const [commentText, setCommentText] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [isPostingComment, setIsPostingComment] = useState(false);
 
   const task = tasks.find(t => t.id === taskId);
   if (!task) return null;
+  const comments = Array.isArray(task.comments) ? task.comments : [];
 
   // Add Comment Handler
-  const handleAddComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentText.trim()) return;
+  const handleAddComment = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const content = commentText.trim();
+    if (!content || isPostingComment) return;
 
+    setCommentError(null);
+    setIsPostingComment(true);
+
+    const commentUser = currentUser || USERS.alex;
+    const createdAt = new Date();
     const newComment: Comment = {
-      id: `comm-${Date.now()}`,
+      id: `comm-${createdAt.getTime()}`,
       user: {
-        name: USERS.alex.name,
-        avatar: USERS.alex.avatar,
-        role: USERS.alex.role
+        name: commentUser.name,
+        avatar: commentUser.avatar,
+        role: commentUser.role
       },
-      content: commentText,
-      timestamp: 'Just now'
+      content,
+      timestamp: createdAt.toISOString()
     };
 
-    const updatedComments = [...task.comments, newComment];
-    const updatedCommentsCount = task.commentsCount + 1;
+    const updatedComments = [...comments, newComment];
+    const updatedCommentsCount = updatedComments.length;
 
-    setTasks(prev => prev.map(t => {
-      if (t.id !== task.id) return t;
+    setTasks(prev => prev.map(existingTask => {
+      if (existingTask.id !== task.id) return existingTask;
       return {
-        ...t,
+        ...existingTask,
         commentsCount: updatedCommentsCount,
         comments: updatedComments
       };
     }));
 
-    updateTask(task.id, {
-      commentsCount: updatedCommentsCount,
-      comments: updatedComments
-    }).catch(err => console.error('Failed to update task comments on server:', err));
-
     setCommentText('');
+
+    try {
+      const savedTask = await updateTask(task.id, {
+        commentsCount: updatedCommentsCount,
+        comments: updatedComments
+      });
+
+      setTasks(prev => prev.map(existingTask => (
+        existingTask.id === savedTask.id ? savedTask : existingTask
+      )));
+    } catch (err) {
+      console.error('Failed to update task comments on server:', err);
+      setCommentError('Comment posted locally, but server sync failed. Try refreshing after the database is back online.');
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddComment();
+    }
   };
 
   // Change Task Status directly from within detail modal
@@ -111,15 +188,15 @@ export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: T
           <div className="space-y-4 pt-4 flex-1 flex flex-col">
             <div className="flex items-center gap-2 border-b border-outline-variant/40 pb-2">
               <MessageSquare size={16} className="text-primary" />
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Comments ({task.comments.length})</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Comments ({comments.length})</h3>
             </div>
 
             {/* Comments List */}
             <div className="space-y-4 flex-1 overflow-y-auto max-h-72 pr-2">
-              {task.comments.length === 0 ? (
+              {comments.length === 0 ? (
                 <p className="text-xs text-on-surface-variant/40 italic py-6 text-center">No team comments posted yet on this task. Be the first to add one below!</p>
               ) : (
-                task.comments.map((comment) => (
+                comments.map((comment) => (
                   <div key={comment.id} className="flex gap-3 bg-surface-container/30 p-3 rounded-xl border border-outline-variant/20">
                     <div className="w-8 h-8 rounded-lg overflow-hidden border border-outline-variant/30 flex-shrink-0">
                       <img src={comment.user.avatar} alt={comment.user.name} className="w-full h-full object-cover" />
@@ -130,7 +207,7 @@ export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: T
                         {comment.user.role && (
                           <span className="text-[9px] bg-surface-container-highest px-1.5 py-0.5 rounded text-outline font-mono uppercase">{comment.user.role}</span>
                         )}
-                        <span className="text-[10px] text-on-surface-variant font-mono">{comment.timestamp}</span>
+                        <span className="text-[10px] text-on-surface-variant font-mono">{formatCommentTimestamp(comment)}</span>
                       </div>
                       <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-sans">{comment.content}</p>
                     </div>
@@ -145,6 +222,7 @@ export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: T
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={handleCommentKeyDown}
                   placeholder="Post comment or link technical references..."
                   rows={1}
                   className="flex-grow bg-transparent border-none text-xs text-on-surface placeholder:text-on-surface-variant/50 outline-none resize-none px-1"
@@ -152,11 +230,15 @@ export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: T
               </div>
               <button 
                 type="submit"
-                className="p-2.5 bg-primary hover:bg-primary/95 text-on-primary rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                disabled={isPostingComment || !commentText.trim()}
+                className="p-2.5 bg-primary hover:bg-primary/95 text-on-primary rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send size={14} />
               </button>
             </form>
+            {commentError && (
+              <p className="text-[10px] text-error font-semibold">{commentError}</p>
+            )}
           </div>
         </div>
 
@@ -189,6 +271,17 @@ export default function TaskDetailsModal({ taskId, tasks, setTasks, onClose }: T
                 ))}
               </select>
             </div>
+
+            {task.status !== 'Done' && (
+              <button
+                type="button"
+                onClick={() => handleStatusChange('Done')}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-secondary/10 hover:bg-secondary/15 border border-secondary/30 rounded-lg text-xs font-bold text-secondary transition-all cursor-pointer"
+              >
+                <CheckCircle size={14} />
+                <span>Mark Complete</span>
+              </button>
+            )}
 
             {/* Assignee Information */}
             <div className="space-y-2">

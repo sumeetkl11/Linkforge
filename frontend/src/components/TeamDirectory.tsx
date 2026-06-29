@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, UserPlus, GitCommit, CheckCircle, Award, Shield, X, Mail, Sparkles, Activity, Star } from 'lucide-react';
+import { Users, UserPlus, GitCommit, CheckCircle, Award, Shield, X, Mail, Sparkles, Activity, Star, MoreVertical } from 'lucide-react';
 import { User } from '../types';
 import { USERS } from '../data';
-import { fetchUsers } from '../api';
+import { banUser, deleteUser, fetchUsers, sendInviteEmail, updateUserAsAdmin } from '../api';
 
 interface TeamDirectoryProps {
   searchVal: string;
@@ -22,6 +23,32 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState('Frontend Developer');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isInviting, setIsInviting] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [manageName, setManageName] = useState('');
+  const [manageEmail, setManageEmail] = useState('');
+  const [manageRole, setManageRole] = useState('');
+  const [manageStatus, setManageStatus] = useState<User['status']>('Offline');
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
+  const [isBanningMember, setIsBanningMember] = useState(false);
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState({ top: 0, left: 0 });
+  const isAdmin = currentUser?.role === 'Admin';
+
+  const roleOptions = [
+    'Admin',
+    'Lead Developer',
+    'Senior Developer',
+    'Frontend Developer',
+    'Backend Developer',
+    'Lead Product Designer',
+    'DevOps Engineer',
+    'Product Manager',
+    'Developer'
+  ];
 
   useEffect(() => {
     fetchUsers(currentUser?.id)
@@ -42,22 +69,190 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
       });
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!openActionMenuId) return;
+
+    const closeMenu = () => setOpenActionMenuId(null);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+
+    return () => {
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+    };
+  }, [openActionMenuId]);
+
   // Filter members based on searchVal
   const filteredMembers = teamMembers.filter(member => 
     member.name.toLowerCase().includes(searchVal.toLowerCase()) ||
     member.role.toLowerCase().includes(searchVal.toLowerCase()) ||
     member.email.toLowerCase().includes(searchVal.toLowerCase())
   );
+  const activeActionMember = teamMembers.find(member => member.id === openActionMenuId) || null;
 
-  // Send Invite simulation
-  const handleSendInvite = (e: React.FormEvent) => {
+  const openManageMember = (member: User) => {
+    if (!isAdmin) return;
+    setSelectedMember(member);
+    setManageName(member.name);
+    setManageEmail(member.email);
+    setManageRole(member.role || 'Developer');
+    setManageStatus(member.status || 'Offline');
+    setManageError(null);
+    setShowManageModal(true);
+    setOpenActionMenuId(null);
+  };
+
+  const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim() || !inviteName.trim()) return;
+    if (!selectedMember || isSavingMember) return;
+    if (!isAdmin) {
+      setManageError('Only admins can manage users.');
+      return;
+    }
+
+    const cleanName = manageName.trim();
+    const cleanEmail = manageEmail.trim().toLowerCase();
+    if (!cleanName || !cleanEmail) {
+      setManageError('Name and email are required.');
+      return;
+    }
+
+    setManageError(null);
+    setIsSavingMember(true);
+
+    const updatedMember: User = {
+      ...selectedMember,
+      name: cleanName,
+      email: cleanEmail,
+      role: manageRole.trim() || 'Developer',
+      status: manageStatus
+    };
+
+    try {
+      const savedMember = await updateUserAsAdmin(updatedMember);
+      setTeamMembers(prev => prev.map(member => (
+        member.id === savedMember.id ? savedMember : member
+      )));
+      setSelectedMember(savedMember);
+      setShowManageModal(false);
+    } catch (err) {
+      console.error('Failed to update teammate:', err);
+      setManageError((err as Error).message || 'Could not save this teammate. Check the backend/database connection and try again.');
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
+  const removeMemberFromList = (memberId: string) => {
+    setTeamMembers(prev => {
+      const nextMembers = prev.filter(member => member.id !== memberId);
+      setSelectedMember(current => (
+        current?.id === memberId ? (nextMembers[0] || null) : current
+      ));
+      return nextMembers;
+    });
+    setShowManageModal(false);
+  };
+
+  const handleMakeAdmin = async (member: User = selectedMember as User) => {
+    if (!member || isSavingMember) return;
+    if (!isAdmin) {
+      setManageError('Only admins can manage users.');
+      return;
+    }
+    setManageError(null);
+    setIsSavingMember(true);
+
+    try {
+      const savedMember = await updateUserAsAdmin({ ...member, role: 'Admin' });
+      setTeamMembers(prev => prev.map(item => (
+        item.id === savedMember.id ? savedMember : item
+      )));
+      setSelectedMember(savedMember);
+      setManageRole('Admin');
+      setOpenActionMenuId(null);
+    } catch (err) {
+      console.error('Failed to make teammate admin:', err);
+      setManageError((err as Error).message || 'Could not make this teammate an admin.');
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
+  const handleDeleteMember = async (member: User = selectedMember as User) => {
+    if (!member || isDeletingMember) return;
+    if (!isAdmin) {
+      setManageError('Only admins can manage users.');
+      return;
+    }
+    const confirmed = window.confirm(`Delete ${member.name} from the team? This removes the user but does not ban their email.`);
+    if (!confirmed) return;
+
+    setManageError(null);
+    setIsDeletingMember(true);
+
+    try {
+      await deleteUser(member.id);
+      removeMemberFromList(member.id);
+      setOpenActionMenuId(null);
+    } catch (err) {
+      console.error('Failed to delete teammate:', err);
+      setManageError((err as Error).message || 'Could not delete this teammate.');
+    } finally {
+      setIsDeletingMember(false);
+    }
+  };
+
+  const handleBanMember = async (
+    member: User = selectedMember as User,
+    banType: 'shadow' | 'permanent' = 'permanent',
+    durationDays?: number
+  ) => {
+    if (!member || isBanningMember) return;
+    if (!isAdmin) {
+      setManageError('Only admins can manage users.');
+      return;
+    }
+    const label = banType === 'shadow' ? `shadow ban ${member.email} for ${durationDays || 7} days` : `permanently ban ${member.email}`;
+    const confirmed = window.confirm(`Confirm ${label}? This removes the user and blocks this email from login, invites, and being re-added${banType === 'shadow' ? ' until the ban expires' : ''}.`);
+    if (!confirmed) return;
+
+    setManageError(null);
+    setIsBanningMember(true);
+
+    try {
+      await banUser(
+        member.id,
+        banType === 'shadow' ? `Shadow banned for ${durationDays || 7} days` : 'Permanently banned from Team Directory',
+        { banType, durationDays }
+      );
+      removeMemberFromList(member.id);
+      setOpenActionMenuId(null);
+    } catch (err) {
+      console.error('Failed to ban teammate:', err);
+      setManageError((err as Error).message || 'Could not ban this teammate.');
+    } finally {
+      setIsBanningMember(false);
+    }
+  };
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      setInviteError('Only admins can invite users.');
+      return;
+    }
+    const cleanEmail = inviteEmail.trim().toLowerCase();
+    const cleanName = inviteName.trim();
+    if (!cleanEmail || !cleanName || isInviting) return;
+
+    setInviteError(null);
+    setIsInviting(true);
 
     const newTeammate: User = {
       id: `u-${Date.now()}`,
-      name: inviteName,
-      email: inviteEmail,
+      name: cleanName,
+      email: cleanEmail,
       role: inviteRole,
       status: 'Offline',
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDpTGNjAHl-U2LMIfDUZbXqbsqcWrtfYRQKRG9LhdNiORyE7TXhfIMXxUGlWNaSa5OJvaBgsJnfnB0xL1VuTe_i3lGTSh4nq-N5pSjRkIReQ993dVejAWBBIeHWXELy4g5tCQDyH3fJQTVQCdSxFRjjNz4Mu5fH__70tSpdmqUQgBUy4JZRFystiSb6mebMda75gD7NXsF948RMwuWygRHSvhFYHj7ibALAnoRMQdkCXu_h2GzKZc_EakaK5kFtdKl7pTuX_1Hj_sE', // Default avatar
@@ -66,10 +261,22 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
       proficiency: 50,
     };
 
-    setTeamMembers(prev => [...prev, newTeammate]);
-    setInviteEmail('');
-    setInviteName('');
-    setShowInviteModal(false);
+    try {
+      const savedTeammate = await sendInviteEmail(newTeammate);
+      setTeamMembers(prev => {
+        const withoutDuplicate = prev.filter(member => member.email.toLowerCase() !== savedTeammate.email.toLowerCase());
+        return [...withoutDuplicate, savedTeammate];
+      });
+      setSelectedMember(savedTeammate);
+      setInviteEmail('');
+      setInviteName('');
+      setShowInviteModal(false);
+    } catch (err) {
+      console.error('Failed to invite teammate:', err);
+      setInviteError((err as Error).message || 'Could not send this invite. Check the backend/email configuration and try again.');
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   return (
@@ -82,13 +289,18 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
           <h1 className="text-3xl font-bold text-on-surface tracking-tight mt-1 font-sans">Engineering Directory</h1>
         </div>
 
-        <button 
-          onClick={() => setShowInviteModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold uppercase tracking-wider rounded-lg transition-all shadow-lg active:scale-[0.98] cursor-pointer"
-        >
-          <UserPlus size={14} className="stroke-[2.5]" />
-          <span>Invite Member</span>
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => {
+              setInviteError(null);
+              setShowInviteModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold uppercase tracking-wider rounded-lg transition-all shadow-lg active:scale-[0.98] cursor-pointer"
+          >
+            <UserPlus size={14} className="stroke-[2.5]" />
+            <span>Invite Member</span>
+          </button>
+        )}
       </div>
 
       {/* Grid Layout: Columns directory list (left) & Active profile details (right) */}
@@ -108,7 +320,7 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                   <th className="px-6 py-3.5">Status</th>
                   <th className="px-6 py-3.5">Role</th>
                   <th className="px-6 py-3.5 hidden md:table-cell">Commits</th>
-                  <th className="px-6 py-3.5 text-right">Details</th>
+                  <th className="px-6 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/40 text-xs">
@@ -151,8 +363,36 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                     
                     <td className="px-6 py-4 hidden md:table-cell font-mono text-primary font-bold">{member.commits}</td>
 
-                    <td className="px-6 py-4 text-right">
-                      <button className="text-primary hover:underline font-semibold font-sans">Profile</button>
+                    <td className="px-6 py-4 text-right relative">
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const menuWidth = 192;
+                            const menuHeight = 260;
+                            const gap = 8;
+                            const left = Math.min(
+                              window.innerWidth - menuWidth - 12,
+                              Math.max(12, rect.right - menuWidth)
+                            );
+                            const top = rect.bottom + menuHeight + gap > window.innerHeight
+                              ? Math.max(12, rect.top - menuHeight - gap)
+                              : rect.bottom + gap;
+                            setActionMenuPosition({ top, left });
+                            setOpenActionMenuId(prev => prev === member.id ? null : member.id);
+                          }}
+                          className="relative z-10 inline-flex items-center justify-center w-9 h-9 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer"
+                          title="User actions"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-outline-variant">--</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -182,6 +422,14 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                     <p className="text-xs text-primary font-mono mt-1 font-medium">{selectedMember.role}</p>
                     <p className="text-[10px] text-on-surface-variant font-mono mt-1 leading-none">{selectedMember.email}</p>
                   </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => openManageMember(selectedMember)}
+                      className="mt-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/15 border border-primary/30 rounded-lg text-[10px] font-bold uppercase tracking-wider text-primary transition-all cursor-pointer"
+                    >
+                      Manage User
+                    </button>
+                  )}
                 </div>
 
                 {/* Key Metrics statistics counters */}
@@ -241,6 +489,42 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
 
       </div>
 
+      {createPortal(
+        <AnimatePresence>
+          {isAdmin && activeActionMember && (
+            <>
+              <motion.button
+                type="button"
+                aria-label="Close user actions"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[110] cursor-default bg-transparent"
+                onPointerDown={() => setOpenActionMenuId(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                className="fixed z-[120] w-48 bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl shadow-black/50 overflow-hidden text-left"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button onClick={() => openManageMember(activeActionMember)} className="w-full px-3 py-2 text-xs text-on-surface hover:bg-surface-container-highest text-left">Edit</button>
+                <button onClick={() => handleMakeAdmin(activeActionMember)} className="w-full px-3 py-2 text-xs text-on-surface hover:bg-surface-container-highest text-left">Make Admin</button>
+                <button onClick={() => handleDeleteMember(activeActionMember)} className="w-full px-3 py-2 text-xs text-error hover:bg-error/10 text-left">Delete</button>
+                <button onClick={() => handleBanMember(activeActionMember, 'permanent')} className="w-full px-3 py-2 text-xs text-error hover:bg-error/10 text-left">Ban Email</button>
+                <button onClick={() => handleBanMember(activeActionMember, 'shadow', 7)} className="w-full px-3 py-2 text-xs text-error hover:bg-error/10 text-left">Shadow Ban 7 Days</button>
+                <button onClick={() => handleBanMember(activeActionMember, 'shadow', 30)} className="w-full px-3 py-2 text-xs text-error hover:bg-error/10 text-left">Shadow Ban 30 Days</button>
+                <button onClick={() => handleBanMember(activeActionMember, 'permanent')} className="w-full px-3 py-2 text-xs font-bold text-error hover:bg-error/10 text-left">Permanently Ban</button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* Invite Member dialog Modal popup */}
       <AnimatePresence>
         {showInviteModal && (
@@ -296,15 +580,17 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                     onChange={(e) => setInviteRole(e.target.value)}
                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   >
-                    <option className="bg-surface-container">Lead Developer</option>
-                    <option className="bg-surface-container">Senior Developer</option>
-                    <option className="bg-surface-container">Frontend Developer</option>
-                    <option className="bg-surface-container">Backend Developer</option>
-                    <option className="bg-surface-container">Lead Product Designer</option>
-                    <option className="bg-surface-container">DevOps Engineer</option>
-                    <option className="bg-surface-container">Product Manager</option>
+                    {roleOptions.map(role => (
+                      <option key={role} className="bg-surface-container">{role}</option>
+                    ))}
                   </select>
                 </div>
+
+                {inviteError && (
+                  <div className="p-3 bg-error/10 border border-error/30 rounded-lg text-[11px] text-error font-semibold">
+                    {inviteError}
+                  </div>
+                )}
 
                 <div className="pt-4 flex gap-3">
                   <button 
@@ -316,9 +602,153 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider bg-primary hover:bg-primary/95 rounded-lg text-on-primary transition-all cursor-pointer shadow-lg"
+                    disabled={isInviting}
+                    className="flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider bg-primary hover:bg-primary/95 rounded-lg text-on-primary transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Send Invite
+                    {isInviting ? 'Sending...' : 'Send Invite'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Member dialog Modal popup */}
+      <AnimatePresence>
+        {showManageModal && selectedMember && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-surface-container-low rounded-xl border border-outline-variant shadow-2xl overflow-hidden flex flex-col"
+            >
+              <header className="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+                <h3 className="text-sm font-bold text-on-surface font-sans">Manage User</h3>
+                <button
+                  onClick={() => setShowManageModal(false)}
+                  className="p-1 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </header>
+
+              <form onSubmit={handleSaveMember} className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={manageName}
+                    onChange={(e) => setManageName(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-variant/40 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={manageEmail}
+                    onChange={(e) => setManageEmail(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-variant/40 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Position / Access Role</label>
+                  <select
+                    value={manageRole}
+                    onChange={(e) => setManageRole(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                  >
+                    {roleOptions.map(role => (
+                      <option key={role} className="bg-surface-container">{role}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Availability Status</label>
+                  <select
+                    value={manageStatus}
+                    onChange={(e) => setManageStatus(e.target.value as User['status'])}
+                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                  >
+                    <option className="bg-surface-container" value="Online">Online</option>
+                    <option className="bg-surface-container" value="Away">Away</option>
+                    <option className="bg-surface-container" value="Offline">Offline</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => selectedMember && handleMakeAdmin(selectedMember)}
+                  className="w-full py-2 text-center text-xs font-bold uppercase tracking-wider border border-primary/40 bg-primary/10 hover:bg-primary/15 rounded-lg text-primary transition-all cursor-pointer"
+                >
+                  Make Admin
+                </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => selectedMember && handleDeleteMember(selectedMember)}
+                    disabled={isDeletingMember || isBanningMember}
+                    className="py-2 text-center text-xs font-bold uppercase tracking-wider border border-error/30 bg-error/10 hover:bg-error/15 rounded-lg text-error transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDeletingMember ? 'Deleting...' : 'Delete User'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectedMember && handleBanMember(selectedMember, 'permanent')}
+                    disabled={isDeletingMember || isBanningMember}
+                    className="py-2 text-center text-xs font-bold uppercase tracking-wider border border-error/50 bg-error/20 hover:bg-error/25 rounded-lg text-error transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBanningMember ? 'Banning...' : 'Ban Email'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => selectedMember && handleBanMember(selectedMember, 'shadow', 7)}
+                    disabled={isDeletingMember || isBanningMember}
+                    className="py-2 text-center text-xs font-bold uppercase tracking-wider border border-error/30 bg-error/10 hover:bg-error/15 rounded-lg text-error transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Shadow Ban 7d
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectedMember && handleBanMember(selectedMember, 'permanent')}
+                    disabled={isDeletingMember || isBanningMember}
+                    className="py-2 text-center text-xs font-bold uppercase tracking-wider border border-error/50 bg-error/20 hover:bg-error/25 rounded-lg text-error transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Permanent Ban
+                  </button>
+                </div>
+
+                {manageError && (
+                  <div className="p-3 bg-error/10 border border-error/30 rounded-lg text-[11px] text-error font-semibold">
+                    {manageError}
+                  </div>
+                )}
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowManageModal(false)}
+                    className="flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider border border-outline-variant hover:bg-surface-container-low rounded-lg text-on-surface transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingMember}
+                    className="flex-1 py-2 text-center text-xs font-bold uppercase tracking-wider bg-primary hover:bg-primary/95 rounded-lg text-on-primary transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSavingMember ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

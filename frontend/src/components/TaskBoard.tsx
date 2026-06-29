@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Filter, ArrowUpDown, MessageSquare, Paperclip, Calendar, ArrowLeft, ArrowRight, UserPlus, X, Check, HelpCircle } from 'lucide-react';
+import { Plus, Filter, ArrowUpDown, MessageSquare, Paperclip, ArrowLeft, ArrowRight, X, Check, HelpCircle, Sparkles } from 'lucide-react';
 import { Task, User } from '../types';
 import { USERS } from '../data';
-import { createTask, updateTask } from '../api';
+import { createTask, fetchUsers, generateTaskDraft, updateTask } from '../api';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -59,8 +59,35 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
   const [newPriority, setNewPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
   const [newAssigneeId, setNewAssigneeId] = useState<string>(USERS.arjun.id);
   const [newTagsText, setNewTagsText] = useState('Frontend, UI');
+  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   const columns = ['Backlog', 'Todo', 'In Progress', 'Review', 'Done'] as const;
+  const assigneeOptions = teamMembers.length > 0 ? teamMembers : Object.values(USERS);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingMembers(true);
+    fetchUsers()
+      .then((users) => {
+        if (!isMounted) return;
+        setTeamMembers(users);
+        if (users.length > 0 && !users.some(user => user.id === newAssigneeId)) {
+          setNewAssigneeId(users[0].id);
+        }
+      })
+      .catch(err => console.error('Failed to load task assignees:', err))
+      .finally(() => {
+        if (isMounted) setIsLoadingMembers(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Filter tasks based on Search value
   const filteredTasks = tasks.filter(t => 
@@ -99,12 +126,20 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
     }
   };
 
+  const completeTask = (taskId: string) => {
+    setTasks(prev => prev.map(task => (
+      task.id === taskId ? { ...task, status: 'Done' } : task
+    )));
+
+    updateTask(taskId, { status: 'Done' }).catch(err => console.error("Database sync failed: ", err));
+  };
+
   // Submit new Task
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const assignee = Object.values(USERS).find(u => u.id === newAssigneeId) || USERS.arjun;
+    const assignee = assigneeOptions.find(u => u.id === newAssigneeId) || assigneeOptions[0] || USERS.arjun;
     const cleanTags = newTagsText.split(',').map(t => t.trim()).filter(Boolean);
 
     const newTask: Task = {
@@ -132,6 +167,36 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
     setNewPriority('Medium');
     setNewTagsText('Frontend, UI');
     setShowAddModal(false);
+  };
+
+  const handleGenerateTaskWithAi = async () => {
+    if (isAiGenerating) return;
+
+    setIsAiGenerating(true);
+    setAiError('');
+    try {
+      const cleanTags = newTagsText.split(',').map(t => t.trim()).filter(Boolean);
+      const draft = await generateTaskDraft({
+        prompt: aiPrompt,
+        title: newTitle,
+        description: newDesc,
+        priority: newPriority,
+        tags: cleanTags,
+        members: assigneeOptions
+      });
+
+      if (draft.title) setNewTitle(draft.title);
+      if (draft.description) setNewDesc(draft.description);
+      if (draft.priority) setNewPriority(draft.priority);
+      if (draft.tags?.length) setNewTagsText(draft.tags.join(', '));
+      if (draft.assigneeId && assigneeOptions.some(user => user.id === draft.assigneeId)) {
+        setNewAssigneeId(draft.assigneeId);
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI could not generate a task right now.');
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   return (
@@ -250,6 +315,16 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
 
                         {/* Assignee & Controls */}
                         <div className="flex items-center gap-2">
+                          {col !== 'Done' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); completeTask(task.id); }}
+                              title="Mark Complete"
+                              className="p-1.5 bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 rounded-lg text-secondary transition-colors cursor-pointer"
+                            >
+                              <Check size={11} />
+                            </button>
+                          )}
+
                           {/* Control arrows to move tasks easily without heavy drag drop client dependencies */}
                           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                             {col !== 'Backlog' && (
@@ -299,17 +374,54 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-surface-container-low rounded-xl border border-outline-variant shadow-2xl overflow-hidden flex flex-col"
             >
-              <header className="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+              <header className="px-6 py-4 border-b border-outline-variant flex justify-between items-center gap-3">
                 <h3 className="text-sm font-bold text-on-surface font-sans">Forge New Task</h3>
-                <button 
-                  onClick={() => setShowAddModal(false)}
-                  className="p-1 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateTaskWithAi}
+                    disabled={isAiGenerating}
+                    title="Generate or enhance task with AI"
+                    className="p-2 bg-primary/10 hover:bg-primary/15 border border-primary/25 rounded-lg text-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+                  >
+                    <Sparkles size={15} className={isAiGenerating ? 'animate-pulse' : ''} />
+                  </button>
+                  <button 
+                    onClick={() => setShowAddModal(false)}
+                    className="p-1 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </header>
 
               <form onSubmit={handleAddTask} className="p-6 space-y-4 flex-1">
+                {/* AI Prompt */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant font-sans block">AI Task Brief</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="Describe the task or click the AI icon to enhance current fields"
+                      className="flex-1 min-w-0 bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-variant/40 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateTaskWithAi}
+                      disabled={isAiGenerating}
+                      title="Generate task"
+                      className="w-9 h-9 flex items-center justify-center bg-primary/10 hover:bg-primary/15 border border-primary/25 rounded-lg text-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all flex-shrink-0"
+                    >
+                      <Sparkles size={14} className={isAiGenerating ? 'animate-pulse' : ''} />
+                    </button>
+                  </div>
+                  {aiError && (
+                    <p className="text-[10px] text-error font-medium">{aiError}</p>
+                  )}
+                </div>
+
                 {/* Title */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant font-sans block">Task Title</label>
@@ -364,7 +476,10 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
                     onChange={(e) => setNewAssigneeId(e.target.value)}
                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   >
-                    {Object.values(USERS).map((user) => (
+                    {isLoadingMembers && (
+                      <option className="bg-surface-container">Loading members...</option>
+                    )}
+                    {assigneeOptions.map((user) => (
                       <option key={user.id} value={user.id} className="bg-surface-container">
                         {user.name} ({user.role})
                       </option>

@@ -8,12 +8,14 @@ import http from 'http';
 import { Server } from 'socket.io';
 import { createClient } from 'redis';
 import passport from 'passport';
+import nodemailer from 'nodemailer';
+import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 app.use(cors());
@@ -81,6 +83,238 @@ async function invalidateCache(key) {
   }
 }
 
+function getFrontendUrl() {
+  return (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+}
+
+function getInviteTransporter() {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS?.replace(/\s/g, '');
+
+  if (!smtpUser || !smtpPass || smtpPass === 'replace-with-gmail-app-password') {
+    throw new Error('SMTP_USER and a Gmail app password in SMTP_PASS are required to send invite emails.');
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: smtpUser,
+      pass: smtpPass
+    }
+  });
+}
+
+async function sendInviteEmail({ email, name, role }) {
+  const smtpUser = process.env.SMTP_USER;
+  const from = process.env.SMTP_FROM || smtpUser;
+  const joinLink = `${getFrontendUrl()}?inviteEmail=${encodeURIComponent(email)}`;
+  const displayName = name || email.split('@')[0];
+
+  const transporter = getInviteTransporter();
+  await transporter.sendMail({
+    from: `"SyncForge" <${from}>`,
+    to: email,
+    subject: 'Join SyncForge',
+    text: [
+      `Hi ${displayName},`,
+      '',
+      'You have been invited to join the SyncForge engineering workspace.',
+      '',
+      `Join here: ${joinLink}`,
+      `Role: ${role || 'Developer'}`,
+      '',
+      'SyncForge'
+    ].join('\n'),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+        <h2 style="margin:0 0 12px">Join SyncForge</h2>
+        <p>Hi ${displayName},</p>
+        <p>You have been invited to join the SyncForge engineering workspace.</p>
+        <p>
+          <a href="${joinLink}" style="display:inline-block;background:#60a5fa;color:#0b1220;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700">
+            Open SyncForge
+          </a>
+        </p>
+        <p><strong>Role:</strong> ${role || 'Developer'}</p>
+      </div>
+    `
+  });
+}
+
+async function isEmailBanned(email) {
+  return Boolean(await getActiveEmailBan(email));
+}
+
+async function getActiveEmailBan(email) {
+  if (!isPostgres() || !email) return null;
+  const result = await pool.query(
+    `SELECT email, reason, ban_type, expires_at
+     FROM banned_emails
+     WHERE email = $1
+       AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+     LIMIT 1`,
+    [email.trim().toLowerCase()]
+  );
+  return result.rows[0] || null;
+}
+
+function getBanLoginError(ban) {
+  const banType = ban?.ban_type === 'shadow' ? 'shadow' : 'permanent';
+  if (banType === 'shadow' && ban.expires_at) {
+    const expiresAt = new Date(ban.expires_at);
+    const daysRemaining = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    return {
+      error: `You can't log in until ${expiresAt.toLocaleString()} because you are shadow banned. ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining.`,
+      banType,
+      expiresAt,
+      daysRemaining,
+      reason: ban.reason || null
+    };
+  }
+
+  return {
+    error: "You can't log in because this email is permanently banned.",
+    banType: 'permanent',
+    expiresAt: null,
+    daysRemaining: null,
+    reason: ban?.reason || null
+  };
+}
+
+async function isUserIdBanned(userId) {
+  if (!isPostgres() || !userId) return false;
+  const result = await pool.query(
+    `SELECT 1 FROM banned_emails
+     WHERE user_id = $1
+       AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows.length > 0;
+}
+
+function normalizeAiPriority(priority) {
+  const cleanPriority = String(priority || '').toLowerCase();
+  if (cleanPriority === 'high') return 'High';
+  if (cleanPriority === 'low') return 'Low';
+  return 'Medium';
+}
+
+function parseAiJson(text) {
+  const cleaned = String(text || '').replace(/```json|```/g, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) {
+      throw new Error('AI returned an unreadable task draft.');
+    }
+    return JSON.parse(match[0]);
+  }
+}
+
+async function generateGeminiTaskDraft({ prompt, title, description, priority, tags, members }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('GEMINI_API_KEY is missing in backend/.env');
+  }
+
+  const memberSummary = (Array.isArray(members) ? members : [])
+    .slice(0, 20)
+    .map(member => `- ${member.id}: ${member.name} (${member.role || 'Developer'})`)
+    .join('\n') || '- No members provided';
+
+  const instruction = `
+You are SyncForge's task planning assistant.
+Return only valid JSON. No markdown. No explanations.
+Create or enhance one engineering task for a Kanban board.
+Choose the best assigneeId from the member list when possible.
+
+Members:
+${memberSummary}
+
+Current fields:
+title: ${title || ''}
+description: ${description || ''}
+priority: ${priority || 'Medium'}
+tags: ${(Array.isArray(tags) ? tags : []).join(', ')}
+
+User brief:
+${prompt || 'Generate a useful engineering task from the current fields.'}
+
+JSON schema:
+{
+  "title": "short task title",
+  "description": "clear task description with acceptance criteria",
+  "priority": "Low | Medium | High",
+  "tags": ["tag"],
+  "assigneeId": "member id from Members"
+}`;
+
+  const requestBody = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: instruction }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.35,
+      responseMimeType: 'application/json'
+    }
+  };
+
+  const configuredModel = process.env.GEMINI_MODEL?.trim();
+  const modelCandidates = [
+    configuredModel,
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-flash-latest',
+    'gemini-1.5-flash'
+  ].filter(Boolean);
+
+  let data = null;
+  let lastError = '';
+
+  for (const model of modelCandidates) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    if (response.ok) {
+      data = await response.json();
+      break;
+    }
+
+    lastError = await response.text();
+    if (![404, 429, 503].includes(response.status)) {
+      break;
+    }
+  }
+
+  if (!data) {
+    throw new Error(`Gemini request failed: ${lastError || 'No supported Gemini model responded.'}`);
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('') || '';
+  const draft = parseAiJson(text);
+
+  return {
+    title: String(draft.title || title || '').trim(),
+    description: String(draft.description || description || '').trim(),
+    priority: normalizeAiPriority(draft.priority || priority),
+    tags: Array.isArray(draft.tags)
+      ? draft.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 6)
+      : (Array.isArray(tags) ? tags : []),
+    assigneeId: draft.assigneeId ? String(draft.assigneeId) : undefined
+  };
+}
+
 // PostgreSQL Connection Pool Setup
 const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL;
@@ -100,9 +334,65 @@ app.use(express.json());
 
 // Initialize Passport and Register Auth Routes
 app.use(passport.initialize());
-import './config/passport.js';
-import authRoutes from './routes/auth.js';
+const { default: configurePassport } = await import('./config/passport.js');
+configurePassport({ pool, isPostgres });
+const { default: authRoutes } = await import('./routes/auth.js');
 app.use(authRoutes);
+
+function getJwtSecret() {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || !jwtSecret.trim()) {
+    throw new Error('Missing required environment variable: JWT_SECRET');
+  }
+  return jwtSecret.trim();
+}
+
+async function requireAdmin(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!token) {
+      return res.status(401).json({ error: 'Admin authentication required' });
+    }
+
+    const payload = jwt.verify(token, getJwtSecret());
+    if (!payload?.id) {
+      return res.status(401).json({ error: 'Invalid admin token' });
+    }
+
+    const result = await pool.query('SELECT id, role FROM users WHERE id = $1', [payload.id]);
+    const user = result.rows[0];
+    if (!user || user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    req.adminUser = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Admin authentication required' });
+  }
+}
+
+async function getUserFromToken(req) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token) {
+    return null;
+  }
+
+  const payload = jwt.verify(token, getJwtSecret());
+  if (!payload?.id) {
+    return null;
+  }
+
+  const result = await pool.query('SELECT * FROM users WHERE id = $1', [payload.id]);
+  const user = result.rows[0];
+  if (!user || await isEmailBanned(user.email)) {
+    return null;
+  }
+
+  return user;
+}
 
 // Real-Time Dashboard Stats Broadcaster
 async function pushDashboardStats() {
@@ -153,6 +443,21 @@ async function initializeDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+      CREATE TABLE IF NOT EXISTS banned_emails (
+        email VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(50),
+        reason TEXT,
+        ban_type VARCHAR(50) DEFAULT 'permanent',
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE banned_emails ADD COLUMN IF NOT EXISTS reason TEXT;
+      ALTER TABLE banned_emails ADD COLUMN IF NOT EXISTS user_id VARCHAR(50);
+      ALTER TABLE banned_emails ADD COLUMN IF NOT EXISTS ban_type VARCHAR(50) DEFAULT 'permanent';
+      ALTER TABLE banned_emails ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+      ALTER TABLE banned_emails ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       
       CREATE TABLE IF NOT EXISTS channels (
         id VARCHAR(50) PRIMARY KEY,
@@ -337,13 +642,39 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    const cleanEmail = email.trim().toLowerCase();
+    const activeBan = await getActiveEmailBan(cleanEmail);
+    if (activeBan) {
+      return res.status(403).json(getBanLoginError(activeBan));
+    }
+
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [cleanEmail]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User credentials not found. Please use a seeded developer email (e.g. alex.r@syncforge.io).' });
     }
-    res.json(result.rows[0]);
+
+    const user = result.rows[0];
+    const token = jwt.sign(
+      { id: user.id },
+      getJwtSecret(),
+      { expiresIn: '7d' }
+    );
+    res.json({ user, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/session', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Session expired or account access has been revoked.' });
+    }
+
+    res.json({ user });
+  } catch (err) {
+    res.status(401).json({ error: 'Session expired or account access has been revoked.' });
   }
 });
 
@@ -354,13 +685,25 @@ app.post('/api/users', async (req, res) => {
   }
 
   try {
-    await pool.query(
+    const cleanEmail = newUser.email?.trim().toLowerCase();
+    if (!cleanEmail) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    const activeBan = await getActiveEmailBan(cleanEmail);
+    if (activeBan) {
+      return res.status(403).json(getBanLoginError(activeBan));
+    }
+    if (await isUserIdBanned(newUser.id)) {
+      return res.status(403).json({ error: 'This user account has been banned from this workspace.' });
+    }
+
+    const result = await pool.query(
       `INSERT INTO users (id, name, email, role, status, avatar, google_id, github_id, username, avatar_url, commits, reviews, proficiency) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
        ON CONFLICT (id) DO UPDATE SET 
          name = EXCLUDED.name, 
          email = EXCLUDED.email, 
-         role = EXCLUDED.role, 
+        role = COALESCE(users.role, 'Developer'), 
          status = EXCLUDED.status, 
          avatar = EXCLUDED.avatar, 
          google_id = COALESCE(users.google_id, EXCLUDED.google_id),
@@ -369,17 +712,18 @@ app.post('/api/users', async (req, res) => {
          avatar_url = EXCLUDED.avatar_url,
          commits = EXCLUDED.commits, 
          reviews = EXCLUDED.reviews, 
-         proficiency = EXCLUDED.proficiency`,
+         proficiency = EXCLUDED.proficiency
+       RETURNING *`,
       [
         newUser.id, 
         newUser.name, 
-        newUser.email, 
-        newUser.role, 
+        cleanEmail, 
+        'Developer', 
         newUser.status, 
         newUser.avatar, 
         newUser.google_id || null, 
         newUser.github_id || null, 
-        newUser.username || newUser.email.split('@')[0], 
+        newUser.username || cleanEmail.split('@')[0], 
         newUser.avatar_url || newUser.avatar || '',
         newUser.commits || 0, 
         newUser.reviews || 0, 
@@ -387,7 +731,128 @@ app.post('/api/users', async (req, res) => {
       ]
     );
     pushDashboardStats();
-    res.json(newUser);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  const updatedUser = req.body || {};
+
+  try {
+    const existingResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const existingUser = existingResult.rows[0];
+    const cleanEmail = (updatedUser.email ?? existingUser.email)?.trim().toLowerCase();
+    const cleanName = (updatedUser.name ?? existingUser.name)?.trim();
+
+    if (!cleanName || !cleanEmail) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const activeBan = await getActiveEmailBan(cleanEmail);
+    if (activeBan) {
+      return res.status(403).json(getBanLoginError(activeBan));
+    }
+
+    const result = await pool.query(
+      `UPDATE users SET
+        name = $1,
+        email = $2,
+        role = $3,
+        status = $4,
+        avatar = $5,
+        username = $6,
+        avatar_url = $7,
+        commits = $8,
+        reviews = $9,
+        proficiency = $10
+       WHERE id = $11
+       RETURNING *`,
+      [
+        cleanName,
+        cleanEmail,
+        updatedUser.role ?? existingUser.role ?? 'Developer',
+        updatedUser.status ?? existingUser.status ?? 'Offline',
+        updatedUser.avatar ?? existingUser.avatar ?? '',
+        updatedUser.username ?? existingUser.username ?? cleanEmail.split('@')[0],
+        updatedUser.avatar_url ?? updatedUser.avatar ?? existingUser.avatar_url ?? existingUser.avatar ?? '',
+        updatedUser.commits ?? existingUser.commits ?? 0,
+        updatedUser.reviews ?? existingUser.reviews ?? 0,
+        updatedUser.proficiency ?? existingUser.proficiency ?? 0,
+        id
+      ]
+    );
+
+    pushDashboardStats();
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    pushDashboardStats();
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:id/ban', requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  const { reason, banType = 'permanent', durationDays } = req.body || {};
+
+  try {
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const email = userResult.rows[0].email.trim().toLowerCase();
+    const normalizedBanType = banType === 'shadow' ? 'shadow' : 'permanent';
+    const days = Number(durationDays);
+    const expiresAt = normalizedBanType === 'shadow' && Number.isFinite(days) && days > 0
+      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+      : null;
+
+    await pool.query(
+      `INSERT INTO banned_emails (email, user_id, reason, ban_type, expires_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email) DO UPDATE SET
+         user_id = EXCLUDED.user_id,
+         reason = EXCLUDED.reason,
+         ban_type = EXCLUDED.ban_type,
+         expires_at = EXCLUDED.expires_at`,
+      [email, id, reason || 'Banned by workspace admin', normalizedBanType, expiresAt]
+    );
+
+    if (io) {
+      io.to(id).emit('auth:banned', {
+        email,
+        banType: normalizedBanType,
+        expiresAt,
+        message: normalizedBanType === 'shadow'
+          ? 'Your account has been temporarily banned from this workspace.'
+          : 'Your account has been permanently banned from this workspace.'
+      });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    pushDashboardStats();
+    res.json({ success: true, id, email, banType: normalizedBanType, expiresAt });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -407,6 +872,100 @@ app.put('/api/users/:id/avatar', async (req, res) => {
     res.json({ success: true, avatarUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/invites', requireAdmin, async (req, res) => {
+  const invitedUser = req.body;
+  const { email, name, role } = invitedUser;
+  if (!email) {
+    return res.status(400).json({ error: 'Invite email is required' });
+  }
+
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const activeBan = await getActiveEmailBan(cleanEmail);
+    if (activeBan) {
+      return res.status(403).json(getBanLoginError(activeBan));
+    }
+    if (await isUserIdBanned(invitedUser.id)) {
+      return res.status(403).json({ error: 'This user account has been banned from this workspace.' });
+    }
+
+    let savedUser = null;
+    if (isPostgres()) {
+      const id = invitedUser.id || `u-${Date.now()}`;
+      const username = invitedUser.username || cleanEmail.split('@')[0];
+      const avatar = invitedUser.avatar || invitedUser.avatar_url || '';
+      const result = await pool.query(
+        `INSERT INTO users (id, name, email, role, status, avatar, google_id, github_id, username, avatar_url, commits, reviews, proficiency)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (email) DO UPDATE SET
+           name = EXCLUDED.name,
+           role = EXCLUDED.role,
+           status = EXCLUDED.status,
+           avatar = EXCLUDED.avatar,
+           username = EXCLUDED.username,
+           avatar_url = EXCLUDED.avatar_url
+         RETURNING *`,
+        [
+          id,
+          name?.trim() || username,
+          cleanEmail,
+          role?.trim() || 'Developer',
+          invitedUser.status || 'Offline',
+          avatar,
+          invitedUser.google_id || null,
+          invitedUser.github_id || null,
+          username,
+          invitedUser.avatar_url || avatar,
+          invitedUser.commits || 0,
+          invitedUser.reviews || 0,
+          invitedUser.proficiency || 0
+        ]
+      );
+      savedUser = result.rows[0];
+    }
+
+    await sendInviteEmail({
+      email: cleanEmail,
+      name: name?.trim(),
+      role: role?.trim()
+    });
+    pushDashboardStats();
+
+    res.json({ success: true, user: savedUser || invitedUser });
+  } catch (err) {
+    console.error('Failed to send invite email:', err);
+    res.status(500).json({
+      error: err.message || 'Failed to send invite email'
+    });
+  }
+});
+
+app.post('/api/ai/tasks/draft', async (req, res) => {
+  try {
+    const members = Array.isArray(req.body?.members)
+      ? req.body.members.map(member => ({
+          id: member.id,
+          name: member.name,
+          role: member.role
+        }))
+      : [];
+
+    const draft = await generateGeminiTaskDraft({
+      prompt: req.body?.prompt,
+      title: req.body?.title,
+      description: req.body?.description,
+      priority: req.body?.priority,
+      tags: req.body?.tags,
+      members
+    });
+
+    res.json(draft);
+  } catch (err) {
+    console.error('Failed to generate AI task draft:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate task with AI' });
   }
 });
 
@@ -448,6 +1007,10 @@ app.post('/api/channels', async (req, res) => {
 });
 
 // --- Messages (with Channel vs DM routing support) ---
+app.get('/api/messages', async (req, res) => {
+  res.json([]);
+});
+
 app.get('/api/messages/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   const { type, currentUserId } = req.query;
@@ -506,16 +1069,25 @@ app.post('/api/messages', async (req, res) => {
       ]
     );
     
+    const realtimeMessage = {
+      ...message,
+      channelId: receiverId ? null : (channelId || null),
+      channel_id: receiverId ? null : (channelId || null),
+      workspace_id: receiverId ? null : (channelId || null),
+      receiverId: receiverId || null,
+      receiver_id: receiverId || null
+    };
+
     // Real-time broadcast
     if (io) {
       if (receiverId) {
-        io.to(senderId).to(receiverId).emit('message:received', message);
+        io.to(senderId).to(receiverId).emit('message:received', realtimeMessage);
       } else {
-        io.to(channelId).emit('message:received', message);
+        io.emit('message:received', realtimeMessage);
       }
     }
     pushDashboardStats();
-    res.json(message);
+    res.json(realtimeMessage);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

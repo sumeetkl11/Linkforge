@@ -29,11 +29,13 @@ export default function Chat({ currentUser }: ChatProps) {
   const [selectedDMColleagueId, setSelectedDMColleagueId] = useState('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   
   // Active channel/DM specific messages state helper
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({});
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Global socket listener for workspace channel creations
   useEffect(() => {
@@ -57,20 +59,25 @@ export default function Chat({ currentUser }: ChatProps) {
       setIsLoading(true);
       try {
         const chans = await fetchChannels();
-        setChannels(chans);
+        const availableChannels = chans.length > 0 ? chans : CHANNELS;
+        setChannels(availableChannels);
         
         const excludeParam = currentUser ? `?exclude=${currentUser.id}` : '';
         const users = await fetch(`/api/users${excludeParam}`).then(res => res.json());
         setColleagues(users);
 
-        if (chans.length > 0) {
-          setActiveChatId(chans[0].id);
+        if (availableChannels.length > 0) {
+          setActiveChatType('channel');
+          setActiveChatId(current => current || availableChannels[0].id);
         }
         if (users.length > 0) {
           setSelectedDMColleagueId(users[0].id);
         }
       } catch (err) {
         console.error('Failed to load initial workspace data:', err);
+        setChannels(CHANNELS);
+        setActiveChatType('channel');
+        setActiveChatId(current => current || CHANNELS[0]?.id || '');
       } finally {
         setIsLoading(false);
       }
@@ -86,6 +93,8 @@ export default function Chat({ currentUser }: ChatProps) {
 
   // Fetch messages from backend for the active chat & setup socket sync
   useEffect(() => {
+    if (!activeChatId) return;
+
     fetchMessages(activeChatId, activeChatType, currentUser?.id)
       .then(msgs => {
         setChannelMessages(prev => ({
@@ -105,23 +114,20 @@ export default function Chat({ currentUser }: ChatProps) {
     const handleMessage = (receivedMsg: Message) => {
       const receiver_id = (receivedMsg as any).receiverId || (receivedMsg as any).receiver_id;
       const channel_id = (receivedMsg as any).channelId || (receivedMsg as any).channel_id || (receivedMsg as any).workspace_id;
-      
-      const isForCurrentChat =
-        (activeChatType === 'channel' && !receiver_id && (channel_id === activeChatId)) ||
-        (activeChatType === 'dm' && receiver_id && currentUser &&
-          ((receivedMsg.user.id === currentUser.id && receiver_id === activeChatId) ||
-           (receivedMsg.user.id === activeChatId && receiver_id === currentUser.id)));
+      const targetChatId = receiver_id && currentUser
+        ? (receivedMsg.user.id === currentUser.id ? receiver_id : receivedMsg.user.id)
+        : channel_id;
 
-      if (isForCurrentChat) {
-        setChannelMessages(prev => {
-          const currentStream = prev[activeChatId] || [];
-          if (currentStream.some(m => m.id === receivedMsg.id)) return prev;
-          return {
-            ...prev,
-            [activeChatId]: [...currentStream, receivedMsg]
-          };
-        });
-      }
+      if (!targetChatId) return;
+
+      setChannelMessages(prev => {
+        const currentStream = prev[targetChatId] || [];
+        if (currentStream.some(m => m.id === receivedMsg.id)) return prev;
+        return {
+          ...prev,
+          [targetChatId]: [...currentStream, receivedMsg]
+        };
+      });
     };
 
     socket.on('message:received', handleMessage);
@@ -133,7 +139,7 @@ export default function Chat({ currentUser }: ChatProps) {
 
   // Handle Send Message
   const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !activeChatId) return;
 
     const newMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -167,6 +173,45 @@ export default function Chat({ currentUser }: ChatProps) {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const updateMentionQuery = (value: string, caretPosition: number) => {
+    const beforeCaret = value.slice(0, caretPosition);
+    const match = beforeCaret.match(/(^|\s)@([a-zA-Z0-9_.-]*)$/);
+    setMentionQuery(match ? match[2].toLowerCase() : null);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    updateMentionQuery(e.target.value, e.target.selectionStart);
+  };
+
+  const insertMention = (user: User) => {
+    const input = inputRef.current;
+    const caretPosition = input?.selectionStart ?? inputText.length;
+    const beforeCaret = inputText.slice(0, caretPosition);
+    const afterCaret = inputText.slice(caretPosition);
+    const mentionLabel = user.username || user.name.toLowerCase().replace(/\s+/g, '.');
+    const nextBeforeCaret = beforeCaret.replace(/(^|\s)@([a-zA-Z0-9_.-]*)$/, `$1@${mentionLabel} `);
+    const nextValue = `${nextBeforeCaret}${afterCaret}`;
+
+    setInputText(nextValue);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(nextBeforeCaret.length, nextBeforeCaret.length);
+    });
+  };
+
+  const renderMessageContent = (content: string) => {
+    const parts = content.split(/(@[a-zA-Z0-9_.-]+)/g);
+    return parts.map((part, index) => (
+      part.startsWith('@') ? (
+        <span key={`${part}-${index}`} className="text-primary font-bold bg-primary/10 rounded px-0.5">{part}</span>
+      ) : (
+        <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>
+      )
+    ));
   };
 
   const handleCreateChannel = async (e: React.FormEvent) => {
@@ -226,12 +271,21 @@ export default function Chat({ currentUser }: ChatProps) {
   const activeColleague = activeChatType === 'dm' ? (colleagues.find(c => c.id === activeChatId) || Object.values(USERS).find(c => c.id === activeChatId)) : null;
 
   const activeStream = channelMessages[activeChatId] || [];
+  const mentionCandidates = mentionQuery === null
+    ? []
+    : [currentUser, ...colleagues]
+        .filter((user): user is User => Boolean(user))
+        .filter(user => {
+          const username = user.username || user.name.toLowerCase().replace(/\s+/g, '.');
+          return user.name.toLowerCase().includes(mentionQuery) || username.toLowerCase().includes(mentionQuery);
+        })
+        .slice(0, 6);
 
   return (
-    <div className="flex flex-1 h-screen overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       
       {/* Channels / DM List Sidebar */}
-      <aside className="w-64 bg-surface-container-low border-r border-outline-variant flex flex-col">
+      <aside className="w-64 h-full min-h-0 bg-surface-container-low border-r border-outline-variant flex flex-col flex-shrink-0">
         <div className="h-14 flex items-center px-4 border-b border-outline-variant bg-surface-container-low/50">
           <span className="text-sm font-bold uppercase tracking-wider text-on-surface">Inbox Workspace</span>
         </div>
@@ -340,7 +394,7 @@ export default function Chat({ currentUser }: ChatProps) {
       </aside>
 
       {/* Main Chat Feed Area */}
-      <main className="flex-1 flex flex-col bg-background relative min-w-0">
+      <main className="flex-1 min-h-0 flex flex-col bg-background relative min-w-0">
         
         {/* Chat Stream Header */}
         <header className="h-14 flex items-center justify-between px-6 border-b border-outline-variant bg-surface/30 backdrop-blur-md z-10">
@@ -367,7 +421,7 @@ export default function Chat({ currentUser }: ChatProps) {
         </header>
 
         {/* Messages Feed */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
           {isLoading ? (
             <div className="space-y-6">
               <div className="flex gap-4 items-start">
@@ -417,7 +471,7 @@ export default function Chat({ currentUser }: ChatProps) {
                       <span className="text-[10px] text-outline-variant font-mono">{message.timestamp}</span>
                     </div>
                     
-                    <p className="mt-1 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                    <p className="mt-1 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
 
                     {/* Styled Code Snippet blocks */}
                     {message.codeSnippet && (
@@ -477,7 +531,20 @@ export default function Chat({ currentUser }: ChatProps) {
               <button onClick={() => insertFormatting('code')} className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Code Block"><Code size={14} /></button>
               <button onClick={() => insertFormatting('link')} className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Link"><Link size={14} /></button>
               <span className="w-[1px] h-4 bg-outline-variant mx-1"></span>
-              <button className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" title="Mentions"><AtSign size={14} /></button>
+              <button
+                type="button"
+                onClick={() => {
+                  const separator = inputText && !inputText.endsWith(' ') ? ' ' : '';
+                  const nextValue = `${inputText}${separator}@`;
+                  setInputText(nextValue);
+                  setMentionQuery('');
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
+                className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                title="Mentions"
+              >
+                <AtSign size={14} />
+              </button>
             </div>
 
             {/* Input fields */}
@@ -487,14 +554,41 @@ export default function Chat({ currentUser }: ChatProps) {
               </button>
               
               <textarea
+                ref={inputRef}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={handleInputChange}
+                onClick={(e) => updateMentionQuery(inputText, e.currentTarget.selectionStart)}
+                onKeyUp={(e) => updateMentionQuery(inputText, e.currentTarget.selectionStart)}
                 onKeyDown={handleKeyPress}
                 placeholder={activeChatType === 'channel' ? `Message #${activeChan?.name || ''}` : `Message @${activeColleague?.username || activeColleague?.name.toLowerCase().replace(' ', '_')}`}
                 rows={1}
                 className="flex-1 bg-transparent border-none focus:ring-0 resize-none text-xs text-on-surface py-1 max-h-36 placeholder:text-on-surface-variant/60 outline-none"
                 style={{ height: 'auto' }}
               />
+
+              {mentionCandidates.length > 0 && (
+                <div className="absolute left-14 right-20 bottom-20 z-30 bg-surface-container-high border border-outline-variant rounded-xl shadow-2xl shadow-black/40 overflow-hidden">
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-outline border-b border-outline-variant/40">
+                    Mention teammate
+                  </div>
+                  {mentionCandidates.map(user => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => insertMention(user)}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-surface-container-highest transition-colors cursor-pointer"
+                    >
+                      <div className="w-7 h-7 rounded-lg overflow-hidden border border-outline-variant/40 flex-shrink-0">
+                        <img src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.name}`} alt={user.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-on-surface truncate">{user.name}</div>
+                        <div className="text-[10px] text-primary font-mono truncate">@{user.username || user.name.toLowerCase().replace(/\s+/g, '.')}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="flex items-center gap-1.5">
                 <button className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
@@ -517,7 +611,7 @@ export default function Chat({ currentUser }: ChatProps) {
       </main>
 
       {/* Right Sidebar: Members List panel */}
-      <aside className="w-64 bg-surface-container-low border-l border-outline-variant hidden xl:flex flex-col">
+      <aside className="w-64 h-full min-h-0 bg-surface-container-low border-l border-outline-variant hidden xl:flex flex-col flex-shrink-0">
         <div className="h-14 flex items-center px-4 border-b border-outline-variant">
           <span className="font-bold text-on-surface text-xs font-sans">Members — {colleagues.length + (currentUser ? 1 : 0)}</span>
         </div>
