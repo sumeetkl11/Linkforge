@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 import { Shield, Mail, Terminal, Award, Check, RefreshCw, AlertCircle, Sparkles, Image, CheckCircle } from 'lucide-react';
 import { User } from '../types';
 import { createUser } from '../api';
+import { apiUrl } from '../config';
 
 interface UserProfileProps {
   currentUser: User | null;
@@ -79,7 +80,7 @@ export default function UserProfile({ currentUser, onUpdateUser }: UserProfilePr
       setAvatar(imageUrl);
 
       const token = localStorage.getItem('token');
-      const apiResponse = await fetch(`/api/users/${currentUser.id}/avatar`, {
+      const apiResponse = await fetch(apiUrl(`/api/users/${currentUser.id}/avatar`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

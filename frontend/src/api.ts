@@ -4,6 +4,7 @@
  */
 
 import { Task, Activity, Channel, Message, User, WikiPage } from './types';
+import { apiUrl } from './config';
 
 export interface TaskAiDraft {
   title: string;
@@ -22,13 +23,13 @@ function authHeaders(): HeadersInit {
 }
 
 export async function fetchTasks(): Promise<Task[]> {
-  const res = await fetch('/api/tasks');
+  const res = await fetch(apiUrl('/api/tasks'));
   if (!res.ok) throw new Error('Failed to fetch tasks');
   return res.json();
 }
 
 export async function createTask(task: Task): Promise<Task> {
-  const res = await fetch('/api/tasks', {
+  const res = await fetch(apiUrl('/api/tasks'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
@@ -38,7 +39,7 @@ export async function createTask(task: Task): Promise<Task> {
 }
 
 export async function updateTask(taskId: string, task: Partial<Task>): Promise<Task> {
-  const res = await fetch(`/api/tasks/${taskId}`, {
+  const res = await fetch(apiUrl(`/api/tasks/${taskId}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
@@ -48,7 +49,7 @@ export async function updateTask(taskId: string, task: Partial<Task>): Promise<T
 }
 
 export async function deleteTask(taskId: string): Promise<boolean> {
-  const res = await fetch(`/api/tasks/${taskId}`, {
+  const res = await fetch(apiUrl(`/api/tasks/${taskId}`), {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete task');
@@ -57,13 +58,13 @@ export async function deleteTask(taskId: string): Promise<boolean> {
 }
 
 export async function fetchActivities(): Promise<Activity[]> {
-  const res = await fetch('/api/activities');
+  const res = await fetch(apiUrl('/api/activities'));
   if (!res.ok) throw new Error('Failed to fetch activities');
   return res.json();
 }
 
 export async function createActivity(activity: Omit<Activity, 'id'>): Promise<Activity> {
-  const res = await fetch('/api/activities', {
+  const res = await fetch(apiUrl('/api/activities'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(activity),
@@ -73,13 +74,13 @@ export async function createActivity(activity: Omit<Activity, 'id'>): Promise<Ac
 }
 
 export async function fetchChannels(): Promise<Channel[]> {
-  const res = await fetch('/api/channels');
+  const res = await fetch(apiUrl('/api/channels'));
   if (!res.ok) throw new Error('Failed to fetch channels');
   return res.json();
 }
 
 export async function createChannel(channel: Omit<Channel, 'id'>): Promise<Channel> {
-  const res = await fetch('/api/channels', {
+  const res = await fetch(apiUrl('/api/channels'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(channel),
@@ -97,13 +98,13 @@ export async function fetchMessages(chatId: string, type?: 'channel' | 'dm', cur
       url += `&currentUserId=${currentUserId}`;
     }
   }
-  const res = await fetch(url);
+  const res = await fetch(apiUrl(url));
   if (!res.ok) throw new Error(`Failed to fetch messages for ${chatId}`);
   return res.json();
 }
 
 export async function sendMessage(channelId: string | null, message: Message, receiverId?: string): Promise<Message> {
-  const res = await fetch('/api/messages', {
+  const res = await fetch(apiUrl('/api/messages'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ channelId, message, receiverId }),
@@ -114,7 +115,7 @@ export async function sendMessage(channelId: string | null, message: Message, re
 
 export async function fetchUsers(excludeId?: string): Promise<User[]> {
   const url = excludeId ? `/api/users?exclude=${excludeId}` : '/api/users';
-  const res = await fetch(url);
+  const res = await fetch(apiUrl(url));
   if (!res.ok) throw new Error('Failed to fetch users');
   return res.json();
 }
@@ -127,7 +128,7 @@ export async function generateTaskDraft(input: {
   tags?: string[];
   members?: User[];
 }): Promise<TaskAiDraft> {
-  const res = await fetch('/api/ai/tasks/draft', {
+  const res = await fetch(apiUrl('/api/ai/tasks/draft'), {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(input),
@@ -140,7 +141,7 @@ export async function generateTaskDraft(input: {
 }
 
 export async function validateSession(): Promise<User> {
-  const res = await fetch('/api/session', {
+  const res = await fetch(apiUrl('/api/session'), {
     headers: authHeaders(),
   });
   if (!res.ok) {
@@ -152,7 +153,7 @@ export async function validateSession(): Promise<User> {
 }
 
 export async function createUser(user: User): Promise<User> {
-  const res = await fetch('/api/users', {
+  const res = await fetch(apiUrl('/api/users'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(user),
@@ -165,7 +166,7 @@ export async function createUser(user: User): Promise<User> {
 }
 
 export async function updateUserAsAdmin(user: User): Promise<User> {
-  const res = await fetch(`/api/admin/users/${user.id}`, {
+  const res = await fetch(apiUrl(`/api/admin/users/${user.id}`), {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(user),
@@ -178,7 +179,7 @@ export async function updateUserAsAdmin(user: User): Promise<User> {
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
-  const res = await fetch(`/api/users/${userId}`, {
+  const res = await fetch(apiUrl(`/api/users/${userId}`), {
     method: 'DELETE',
     headers: authHeaders(),
   });
@@ -195,7 +196,7 @@ export async function banUser(
   reason?: string,
   options?: { banType?: 'shadow' | 'permanent'; durationDays?: number }
 ): Promise<{ success: boolean; email: string }> {
-  const res = await fetch(`/api/users/${userId}/ban`, {
+  const res = await fetch(apiUrl(`/api/users/${userId}/ban`), {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ reason, ...options }),
@@ -208,7 +209,7 @@ export async function banUser(
 }
 
 export async function sendInviteEmail(user: User): Promise<User> {
-  const res = await fetch('/api/invites', {
+  const res = await fetch(apiUrl('/api/invites'), {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(user),
@@ -222,7 +223,7 @@ export async function sendInviteEmail(user: User): Promise<User> {
 }
 
 export async function resetDatabase(): Promise<boolean> {
-  const res = await fetch('/api/reset', {
+  const res = await fetch(apiUrl('/api/reset'), {
     method: 'POST',
   });
   if (!res.ok) throw new Error('Failed to reset database');
@@ -231,13 +232,13 @@ export async function resetDatabase(): Promise<boolean> {
 }
 
 export async function fetchWikiPages(): Promise<WikiPage[]> {
-  const res = await fetch('/api/wiki');
+  const res = await fetch(apiUrl('/api/wiki'));
   if (!res.ok) throw new Error('Failed to fetch wiki pages');
   return res.json();
 }
 
 export async function saveWikiPage(wiki: Partial<WikiPage>): Promise<WikiPage> {
-  const res = await fetch('/api/wiki', {
+  const res = await fetch(apiUrl('/api/wiki'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(wiki),
@@ -247,7 +248,7 @@ export async function saveWikiPage(wiki: Partial<WikiPage>): Promise<WikiPage> {
 }
 
 export async function deleteWikiPage(id: string): Promise<boolean> {
-  const res = await fetch(`/api/wiki/${id}`, {
+  const res = await fetch(apiUrl(`/api/wiki/${id}`), {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete wiki page');
@@ -256,7 +257,7 @@ export async function deleteWikiPage(id: string): Promise<boolean> {
 }
 
 export async function loginUser(email: string): Promise<User> {
-  const res = await fetch('/api/login', {
+  const res = await fetch(apiUrl('/api/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),

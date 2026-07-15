@@ -18,6 +18,13 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+
+// Render terminates TLS and forwards the original client details through one proxy.
+// This is required for req.ip and express-rate-limit to handle X-Forwarded-For safely.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(cors());
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
@@ -1344,10 +1351,15 @@ async function startServer() {
 
   if (process.env.NODE_ENV === 'production') {
     const distPath = path.join(__dirname, '../frontend/dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(indexPath);
+      });
+    } else {
+      console.log('[config] Frontend build not found; running as an API-only service.');
+    }
   }
 
   // Socket.io room joins & presence

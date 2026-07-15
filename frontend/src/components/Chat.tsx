@@ -9,6 +9,7 @@ import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Dow
 import { Channel, Message, User } from '../types';
 import { CHANNELS, INITIAL_MESSAGES, USERS } from '../data';
 import { fetchMessages, sendMessage, fetchChannels } from '../api';
+import { apiUrl } from '../config';
 
 import { socket } from '../utils/socket';
 
@@ -63,7 +64,7 @@ export default function Chat({ currentUser }: ChatProps) {
         setChannels(availableChannels);
         
         const excludeParam = currentUser ? `?exclude=${currentUser.id}` : '';
-        const users = await fetch(`/api/users${excludeParam}`).then(res => res.json());
+        const users = await fetch(apiUrl(`/api/users${excludeParam}`)).then(res => res.json());
         setColleagues(users);
 
         if (availableChannels.length > 0) {
@@ -219,7 +220,7 @@ export default function Chat({ currentUser }: ChatProps) {
     if (!newChannelName.trim()) return;
 
     try {
-      const response = await fetch('/api/channels', {
+      const response = await fetch(apiUrl('/api/channels'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

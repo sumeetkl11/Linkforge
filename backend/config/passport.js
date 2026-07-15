@@ -16,7 +16,7 @@ function getCallbackUrl(provider) {
     return providerCallbackUrl.trim();
   }
   const backendUrl = (process.env.APP_URL);
-  console.log(`Using default callback URL for ${providerCallbackUrl}: ${backendUrl}/api/auth/${provider}/callback`);
+  // console.log(`Using default callback URL for ${providerCallbackUrl}: ${backendUrl}/api/auth/${provider}/callback`);
   return `${backendUrl}/api/auth/${provider}/callback`;
 }
 
