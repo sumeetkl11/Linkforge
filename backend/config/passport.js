@@ -11,7 +11,12 @@ function requireEnv(name) {
 }
 
 function getCallbackUrl(provider) {
-  const backendUrl = (process.env.BACKEND_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, '');
+  const providerCallbackUrl = process.env[`${provider.toUpperCase()}_CALLBACK_URL`];
+  if (providerCallbackUrl?.trim()) {
+    return providerCallbackUrl.trim();
+  }
+  const backendUrl = (process.env.APP_URL);
+  console.log(`Using default callback URL for ${providerCallbackUrl}: ${backendUrl}/api/auth/${provider}/callback`);
   return `${backendUrl}/api/auth/${provider}/callback`;
 }
 
