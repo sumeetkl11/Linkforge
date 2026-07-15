@@ -14,6 +14,16 @@ export interface TaskAiDraft {
   assigneeId?: string;
 }
 
+export class SessionValidationError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'SessionValidationError';
+    this.status = status;
+  }
+}
+
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('token');
   return {
@@ -146,7 +156,10 @@ export async function validateSession(): Promise<User> {
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Session expired or account access has been revoked.');
+    throw new SessionValidationError(
+      errData.error || `Session validation failed (${res.status}).`,
+      res.status
+    );
   }
   const data = await res.json();
   return data.user;

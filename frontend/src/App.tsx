@@ -19,7 +19,7 @@ import UserProfile from './components/UserProfile';
 import Wiki from './components/Wiki';
 import { Task, Activity, User, Message, AppNotification } from './types';
 import { INITIAL_TASKS, RECENT_ACTIVITIES } from './data';
-import { fetchTasks, fetchActivities, fetchUsers, resetDatabase, validateSession, fetchChannels } from './api';
+import { fetchTasks, fetchActivities, fetchUsers, resetDatabase, validateSession, fetchChannels, SessionValidationError } from './api';
 import { socket } from './utils/socket';
 
 export default function App() {
@@ -65,6 +65,9 @@ export default function App() {
     }
   };
 
+  const isAuthenticationFailure = (error: unknown) =>
+    error instanceof SessionValidationError && (error.status === 401 || error.status === 403);
+
   // Capture Google OAuth token from URL or localStorage on boot
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -108,7 +111,12 @@ export default function App() {
         })
         .catch(err => {
           console.error('Failed to validate session:', err);
-          endSession((err as Error).message || 'Your session has expired. Please log in again.');
+          if (isAuthenticationFailure(err)) {
+            endSession((err as Error).message || 'Your session has expired. Please log in again.');
+          } else {
+            setIsLoadingUser(false);
+            setToastMessage('Unable to reach the session service. Retrying without signing you out.');
+          }
         });
     } else if (isLoggedIn && currentUser) {
       setIsLoadingUser(false);
@@ -222,7 +230,9 @@ export default function App() {
         .then(user => setCurrentUser(user))
         .catch(err => {
           console.error('Session revoked:', err);
-          endSession((err as Error).message || 'Your session has expired. Please log in again.');
+          if (isAuthenticationFailure(err)) {
+            endSession((err as Error).message || 'Your session has expired. Please log in again.');
+          }
         });
     };
 
