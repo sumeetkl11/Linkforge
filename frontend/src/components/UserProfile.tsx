@@ -241,46 +241,65 @@ export default function UserProfile({ currentUser, onUpdateUser }: UserProfilePr
 
             <div className="w-full h-[1px] bg-outline-variant/30 my-4"></div>
 
-            {/* Proficiency progress */}
-            <div className="w-full space-y-1.5 text-left">
-              <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">
-                <span>Forge Proficiency</span>
-                <span className="font-mono text-primary">{currentUser.proficiency}%</span>
+            {/* Proficiency progress — only shown when user has real data */}
+            {currentUser.proficiency > 0 && (
+              <div className="w-full space-y-1.5 text-left">
+                <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">
+                  <span>Forge Proficiency</span>
+                  <span className="font-mono text-primary">{currentUser.proficiency}%</span>
+                </div>
+                <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${currentUser.proficiency}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary rounded-full transition-all duration-500" 
-                  style={{ width: `${currentUser.proficiency}%` }}
-                />
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Productivity Stats Grid */}
-          <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl p-5 space-y-4 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-              <Award size={14} className="text-secondary" />
-              <span>Workspace Stats</span>
-            </h3>
+          {/* Productivity Stats Grid — only shown when user has real metrics */}
+          {(currentUser.commits > 0 || currentUser.reviews > 0) ? (
+            <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl p-5 space-y-4 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                <Award size={14} className="text-secondary" />
+                <span>Workspace Stats</span>
+              </h3>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-center">
-                <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Commits</span>
-                <span className="text-lg font-bold font-mono text-on-surface mt-1">{currentUser.commits}</span>
+              <div className="grid grid-cols-2 gap-3">
+                {currentUser.commits > 0 && (
+                  <div className="p-3 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-center">
+                    <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Commits</span>
+                    <span className="text-lg font-bold font-mono text-on-surface mt-1">{currentUser.commits}</span>
+                  </div>
+                )}
+                {currentUser.reviews > 0 && (
+                  <div className="p-3 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-center">
+                    <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Code Reviews</span>
+                    <span className="text-lg font-bold font-mono text-on-surface mt-1">{currentUser.reviews}</span>
+                  </div>
+                )}
               </div>
-              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-center">
-                <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Code Reviews</span>
-                <span className="text-lg font-bold font-mono text-on-surface mt-1">{currentUser.reviews}</span>
-              </div>
-            </div>
 
-            <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/10 flex items-start gap-2.5">
-              <Sparkles className="text-primary w-4 h-4 mt-0.5 flex-shrink-0" />
-              <div className="text-[11px] leading-relaxed text-on-surface-variant">
-                <strong className="text-on-surface font-semibold">Seniority Status:</strong> You are ranked in the top <span className="text-primary font-semibold font-mono">5%</span> of contributors for the active sprint compiler index.
-              </div>
+              {currentUser.commits > 500 && (
+                <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/10 flex items-start gap-2.5">
+                  <Sparkles className="text-primary w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div className="text-[11px] leading-relaxed text-on-surface-variant">
+                    <strong className="text-on-surface font-semibold">Top Contributor:</strong> You are ranked in the top{' '}
+                    <span className="text-primary font-semibold font-mono">5%</span> of contributors for the active sprint.
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl p-5 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                <Award size={14} className="text-secondary" />
+                <span>Workspace Stats</span>
+              </h3>
+              <p className="text-[11px] text-on-surface-variant/60 mt-3">No activity metrics yet — stats will appear as you use the workspace.</p>
+            </div>
+          )}
 
         </div>
 

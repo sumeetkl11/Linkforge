@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Home, Inbox, Layers, Users, Settings, HelpCircle, Plus, LogOut, Terminal, BookOpen } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { Home, MessageSquare, Layers, Users, Settings, HelpCircle, Plus, LogOut, Terminal, BookOpen } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../types';
+import { resolveAvatar } from '../utils/avatar';
 
 interface SidebarProps {
   currentScreen: 'Dashboard' | 'Chat' | 'TaskBoard' | 'TeamDirectory' | 'Settings' | 'UserProfile' | 'Wiki';
@@ -18,135 +19,247 @@ interface SidebarProps {
   isLoading?: boolean;
 }
 
-export default function Sidebar({ currentScreen, setScreen, onLogout, onCreateProject, currentUser, onTriggerToast, isLoading }: SidebarProps) {
-  const menuItems = [
-    { id: 'Dashboard', label: 'Home', icon: Home },
-    { id: 'Chat', label: 'Inbox', icon: Inbox },
-    { id: 'TaskBoard', label: 'Projects', icon: Layers },
-    { id: 'TeamDirectory', label: 'Team', icon: Users },
-    { id: 'Wiki', label: 'Wiki', icon: BookOpen },
-  ] as const;
+const primaryNav = [
+  { id: 'Dashboard', label: 'Home', icon: Home },
+  { id: 'Chat', label: 'Inbox', icon: MessageSquare },
+  { id: 'TaskBoard', label: 'Projects', icon: Layers },
+  { id: 'TeamDirectory', label: 'Team', icon: Users },
+  { id: 'Wiki', label: 'Wiki', icon: BookOpen },
+] as const;
 
-  const userAvatar = currentUser?.avatar || "https://lh3.googleusercontent.com/aida-public/AB6AXuBsJEukRni_tXEjVv7G0fDSeT8UdSi7FbwsEUT_G6tuVIEpf16JpZRuFX9Hs_FA_0RK-PWTQiP2g1AJSXjN2wZYSWekIjl_rGMrQCRBsPWph1VIOC1vPr3_SwbvqdM3wRwGCpA4zNcAQMM_1dvktJR_72kVV_mDhptUSDmvvRXTiv0oDO-9Ju9648-WKlcjbCqDzbNky2qnML21LjdnbHOHIj_N01suFnRnYph8ldj4BavqC2-ThpGIx6LcHpm2MnUPe4Vwlg";
-  const userName = currentUser?.name || "Alex Rivera";
-  const userRole = currentUser?.role || "Lead Developer";
+type NavId = typeof primaryNav[number]['id'];
+
+export default function Sidebar({
+  currentScreen,
+  setScreen,
+  onLogout,
+  onCreateProject,
+  currentUser,
+  onTriggerToast,
+  isLoading,
+}: SidebarProps) {
+  const [tooltip, setTooltip] = useState<string | null>(null);
+
+  const userAvatar = resolveAvatar(currentUser);
+  const userName = currentUser?.name || 'User';
+  const userRole = currentUser?.role || 'Member';
+
+  const statusColor =
+    currentUser?.status === 'Online'
+      ? 'bg-[var(--color-status-online)]'
+      : currentUser?.status === 'Away'
+      ? 'bg-[var(--color-status-away)]'
+      : 'bg-[var(--color-status-offline)]';
 
   return (
-    <aside className="flex flex-col h-screen sticky top-0 bg-surface border-r border-outline-variant w-64 flex-shrink-0 z-50">
-      {/* Brand Header */}
-      <div className="p-5 flex items-center gap-3">
-        <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center text-on-primary">
-          <Terminal size={20} className="stroke-[2.5]" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-headline-md text-lg font-bold text-on-surface leading-none tracking-tight">SyncForge</span>
-          <span className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mt-1">Engineering Team</span>
-        </div>
+    <aside className="flex flex-col h-screen sticky top-0 bg-surface border-r border-outline-variant w-16 flex-shrink-0 z-50 items-center py-3 gap-1">
+
+      {/* Brand Logo */}
+      <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-on-primary mb-3 flex-shrink-0">
+        <Terminal size={20} className="stroke-[2.5]" />
       </div>
 
-      {/* Action Button */}
-      <div className="px-4 mt-2 mb-6">
-        <button 
+      {/* New Project Button */}
+      <div className="relative group mb-2">
+        <button
           onClick={onCreateProject}
-          className="w-full py-2.5 px-4 bg-primary-container hover:bg-primary-container/90 text-on-primary-container font-bold rounded-lg flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all duration-150 active:scale-[0.98] cursor-pointer shadow-sm"
+          onMouseEnter={() => setTooltip('New Project')}
+          onMouseLeave={() => setTooltip(null)}
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-container hover:bg-primary text-on-primary-container hover:text-on-primary transition-all duration-150 active:scale-95 cursor-pointer shadow-sm"
+          title="New Project"
         >
-          <Plus size={16} className="stroke-[2.5]" />
-          <span>New Project</span>
+          <Plus size={18} className="stroke-[2.5]" />
         </button>
+        <AnimatePresence>
+          {tooltip === 'New Project' && (
+            <motion.div
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -4 }}
+              transition={{ duration: 0.12 }}
+              className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
+            >
+              <div className="bg-surface-container-highest border border-outline-variant text-on-surface text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap">
+                New Project
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Primary Navigation */}
-      <nav className="flex-1 px-2 space-y-1">
-        {menuItems.map((item) => {
+      {/* Divider */}
+      <div className="w-8 h-px bg-outline-variant/60 my-1" />
+
+      {/* Primary Navigation Icons */}
+      <nav className="flex-1 flex flex-col items-center gap-1 w-full px-2">
+        {primaryNav.map((item) => {
           const IconComponent = item.icon;
           const isActive = currentScreen === item.id;
 
           return (
-            <button
-              key={item.id}
-              onClick={() => setScreen(item.id)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-all text-sm font-medium relative group cursor-pointer ${
-                isActive
-                  ? 'text-primary font-bold bg-surface-container-high border-r-2 border-primary'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60'
-              }`}
-            >
-              <IconComponent 
-                size={18} 
-                className={`transition-colors ${isActive ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface'}`} 
-              />
-              <span>{item.label}</span>
-              {isActive && (
-                <motion.div
-                  layoutId="activeTabIndicator"
-                  className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-            </button>
+            <div key={item.id} className="relative group w-full flex justify-center">
+              <motion.button
+                onClick={() => setScreen(item.id)}
+                onMouseEnter={() => setTooltip(item.label)}
+                onMouseLeave={() => setTooltip(null)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-150 cursor-pointer relative ${
+                  isActive
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/70'
+                }`}
+              >
+                <IconComponent size={19} className={isActive ? 'stroke-[2.5]' : 'stroke-[1.75]'} />
+                {isActive && (
+                  <motion.div
+                    layoutId="activeRailPill"
+                    className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-full"
+                    transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                  />
+                )}
+              </motion.button>
+
+              {/* Tooltip */}
+              <AnimatePresence>
+                {tooltip === item.label && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
+                  >
+                    <div className="bg-surface-container-highest border border-outline-variant text-on-surface text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap">
+                      {item.label}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           );
         })}
       </nav>
 
-      {/* Footer / User Profile Area */}
-      <div className="mt-auto border-t border-outline-variant p-2 space-y-1">
-        <button 
-          onClick={() => setScreen('Settings')}
-          className={`w-full flex items-center gap-4 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-all ${
-            currentScreen === 'Settings'
-              ? 'text-primary font-bold bg-surface-container-high border-r-2 border-primary'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60'
-          }`}
-        >
-          <Settings size={18} />
-          <span>Settings</span>
-        </button>
-        <button 
-          onClick={() => onTriggerToast("Feature coming soon: Help & Support documentation library.")}
-          className="w-full flex items-center gap-4 px-4 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors text-sm font-medium cursor-pointer"
-        >
-          <HelpCircle size={18} />
-          <span>Help &amp; Support</span>
-        </button>
+      {/* Divider */}
+      <div className="w-8 h-px bg-outline-variant/60 my-1" />
 
-        {/* User Card */}
-        <div className={`flex items-center justify-between gap-2 p-3 mt-2 rounded-xl border transition-all ${
-          currentScreen === 'UserProfile'
-            ? 'bg-primary/5 border-primary/40'
-            : 'bg-surface-container-low/50 border-outline-variant/30 hover:border-outline-variant/70'
-        }`}>
-          <button 
-            onClick={() => setScreen('UserProfile')}
-            className="flex items-center gap-3 overflow-hidden text-left cursor-pointer flex-1 min-w-0"
+      {/* Footer Icons */}
+      <div className="flex flex-col items-center gap-1 w-full px-2">
+        {/* Settings */}
+        <div className="relative group w-full flex justify-center">
+          <motion.button
+            onClick={() => setScreen('Settings')}
+            onMouseEnter={() => setTooltip('Settings')}
+            onMouseLeave={() => setTooltip(null)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
+              currentScreen === 'Settings'
+                ? 'bg-primary/15 text-primary'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/70'
+            }`}
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/50 flex-shrink-0 bg-surface-container-highest">
+            <Settings size={18} />
+          </motion.button>
+          <AnimatePresence>
+            {tooltip === 'Settings' && (
+              <motion.div
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
+              >
+                <div className="bg-surface-container-highest border border-outline-variant text-on-surface text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap">
+                  Settings
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Help */}
+        <div className="relative group w-full flex justify-center">
+          <motion.button
+            onClick={() => onTriggerToast('Help & Support documentation coming soon.')}
+            onMouseEnter={() => setTooltip('Help')}
+            onMouseLeave={() => setTooltip(null)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-10 h-10 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/70 transition-all cursor-pointer"
+          >
+            <HelpCircle size={18} />
+          </motion.button>
+          <AnimatePresence>
+            {tooltip === 'Help' && (
+              <motion.div
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
+              >
+                <div className="bg-surface-container-highest border border-outline-variant text-on-surface text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap">
+                  Help & Support
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* User Avatar */}
+        <div className="relative group w-full flex justify-center mt-1">
+          <div className="relative">
+            <button
+              onClick={() => setScreen('UserProfile')}
+              onMouseEnter={() => setTooltip(userName)}
+              onMouseLeave={() => setTooltip(null)}
+              className={`w-10 h-10 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                currentScreen === 'UserProfile'
+                  ? 'border-primary'
+                  : 'border-outline-variant/50 hover:border-outline-variant'
+              }`}
+            >
               {isLoading || !currentUser ? (
-                <div className="w-full h-full bg-outline-variant/40 animate-pulse rounded-full" />
+                <div className="w-full h-full bg-outline-variant/40 animate-pulse" />
               ) : (
-                <img 
-                  src={userAvatar} 
-                  alt={userName}
-                  className="w-full h-full object-cover"
-                />
+                <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
               )}
-            </div>
-            <div className="overflow-hidden flex-1">
-              <p className="text-xs font-bold text-on-surface truncate">{userName}</p>
-              <p className="text-[10px] text-on-surface-variant truncate font-mono">{userRole}</p>
-            </div>
-          </button>
-          
-          <button 
-            onClick={() => {
-              if (window.confirm("Are you sure you want to sign out?")) {
-                onLogout();
-              }
-            }}
-            title="Sign Out"
-            className="p-1.5 hover:bg-error/10 rounded-lg text-on-surface-variant hover:text-error transition-all cursor-pointer flex-shrink-0"
-          >
-            <LogOut size={16} />
-          </button>
+            </button>
+            {/* Status dot */}
+            {currentUser && !isLoading && (
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface ${statusColor}`} />
+            )}
+          </div>
+
+          {/* User tooltip with name + logout */}
+          <AnimatePresence>
+            {tooltip === userName && (
+              <motion.div
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute left-full ml-3 bottom-0 z-50 pointer-events-none"
+              >
+                <div className="bg-surface-container-highest border border-outline-variant rounded-lg shadow-xl px-3 py-2 min-w-[140px]">
+                  <p className="text-xs font-bold text-on-surface leading-tight">{userName}</p>
+                  <p className="text-[10px] text-on-surface-variant font-mono leading-tight mt-0.5">{userRole}</p>
+                  <button
+                    onMouseEnter={(e) => e.currentTarget.parentElement!.style.pointerEvents = 'auto'}
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to sign out?')) onLogout();
+                    }}
+                    className="pointer-events-auto mt-2 flex items-center gap-1.5 text-[10px] text-error hover:text-error font-semibold cursor-pointer"
+                  >
+                    <LogOut size={12} />
+                    Sign out
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </aside>

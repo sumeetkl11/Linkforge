@@ -38,6 +38,23 @@
   --color-on-error: #690005;
   --color-error-container: #93000a;
   --color-on-error-container: #ffdad6;
+
+  /* === Semantic Alias Tokens === */
+  /* Priority colors — used on task cards, board filters, badges */
+  --color-priority-high: #ffb4ab;     /* same as error */
+  --color-priority-medium: #e8c358;   /* same as tertiary */
+  --color-priority-low: #67df70;      /* same as secondary */
+
+  /* Presence/status dots */
+  --color-status-online: #67df70;
+  --color-status-away: #e8c358;
+  --color-status-offline: #8b919d;
+
+  /* Border radius scale — keeps corner radius consistent */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 }
 
 /* Base custom styles to provide a rich dark atmospheric backdrop */

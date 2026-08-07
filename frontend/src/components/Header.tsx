@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Grid, ChevronDown, X, CheckCheck, MessageCircle, CheckSquare, Hash, Zap } from 'lucide-react';
 import { User, AppNotification } from '../types';
+import { resolveAvatar } from '../utils/avatar';
 
 interface HeaderProps {
   searchVal: string;
@@ -44,9 +45,9 @@ export default function Header({
   const [isBellOpen, setIsBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
 
-  const userAvatar = currentUser?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=default";
-  const userName = currentUser?.name || "User";
-  const userRole = currentUser?.role || "Member";
+  const userAvatar = resolveAvatar(currentUser);
+  const userName = currentUser?.name || 'User';
+  const userRole = currentUser?.role || 'Member';
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const displayBadge = unreadCount > 0;
@@ -138,35 +139,45 @@ export default function Header({
                 </div>
               </div>
 
-              {/* Notification List */}
-              <div className="max-h-72 overflow-y-auto">
+              {/* Grouped Notification List */}
+              <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-10 text-on-surface-variant">
                     <Bell size={24} className="opacity-30" />
                     <span className="text-xs font-sans">You're all caught up!</span>
                   </div>
                 ) : (
-                  notifications.slice(0, 20).map(n => (
-                    <div
-                      key={n.id}
-                      className={`flex items-start gap-3 px-4 py-3 border-b border-outline-variant/20 transition-colors ${
-                        !n.read ? 'bg-primary/5' : 'hover:bg-surface-container'
-                      }`}
-                    >
-                      <div className="w-6 h-6 rounded-lg bg-surface-container-highest flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {notifIcon[n.type]}
+                  (['message', 'task', 'channel', 'system'] as Array<AppNotification['type']>).map(type => {
+                    const labels: Record<AppNotification['type'], string> = {
+                      message: 'Messages', task: 'Tasks', channel: 'Channels', system: 'System'
+                    };
+                    const groupItems = notifications.filter(n => n.type === type);
+                    if (groupItems.length === 0) return null;
+                    const groupUnread = groupItems.filter(n => !n.read).length;
+                    return (
+                      <div key={type}>
+                        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant/20 bg-surface-container/40">
+                          <span className="w-4 h-4 flex items-center justify-center">{notifIcon[type]}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex-1">{labels[type]}</span>
+                          {groupUnread > 0 && (
+                            <span className="text-[9px] font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">{groupUnread} new</span>
+                          )}
+                        </div>
+                        {groupItems.slice(0, 5).map(n => (
+                          <div
+                            key={n.id}
+                            className={`flex items-start gap-3 px-4 py-3 border-b border-outline-variant/10 transition-colors ${!n.read ? 'bg-primary/5' : 'hover:bg-surface-container'}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[11px] leading-snug ${!n.read ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{n.text}</p>
+                              <span className="text-[10px] text-outline font-mono mt-0.5 block">{n.time}</span>
+                            </div>
+                            {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />}
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-[11px] leading-snug ${!n.read ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>
-                          {n.text}
-                        </p>
-                        <span className="text-[10px] text-outline font-mono mt-0.5 block">{n.time}</span>
-                      </div>
-                      {!n.read && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />
-                      )}
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

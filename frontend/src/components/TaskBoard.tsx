@@ -5,10 +5,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Filter, ArrowUpDown, MessageSquare, Paperclip, ArrowLeft, ArrowRight, X, Check, HelpCircle, Sparkles } from 'lucide-react';
+import { Plus, Filter, ArrowUpDown, MessageSquare, Paperclip, ArrowLeft, ArrowRight, X, Check, Sparkles, Calendar } from 'lucide-react';
 import { Task, User } from '../types';
 import { USERS } from '../data';
 import { createTask, fetchUsers, generateTaskDraft, updateTask } from '../api';
+import { resolveAvatar } from '../utils/avatar';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -251,111 +252,150 @@ export default function TaskBoard({ tasks, setTasks, onSelectTask, searchVal }: 
               {/* Column Cards Stream */}
               <div className="flex flex-col gap-3 min-h-[500px]">
                 {colTasks.length === 0 ? (
-                  <div className="border border-dashed border-outline-variant/30 rounded-xl p-6 text-center text-xs text-on-surface-variant/40 flex flex-col items-center justify-center h-32 bg-surface-container-lowest/10">
-                    <HelpCircle size={18} className="mb-2 stroke-[1.5]" />
-                    <span>No tasks here</span>
-                  </div>
-                ) : (
-                  colTasks.map((task) => (
-                    <motion.div
-                      layoutId={`card-${task.id}`}
-                      key={task.id}
-                      className="bg-surface-container border border-outline-variant hover:border-primary/50 p-4 rounded-xl transition-all cursor-pointer relative overflow-hidden group flex flex-col justify-between"
-                      style={{ height: '170px' }}
+                    <div
+                      onClick={() => setShowAddModal(true)}
+                      className="border border-dashed border-outline-variant/40 rounded-xl p-6 text-center flex flex-col items-center justify-center h-32 bg-surface-container-lowest/20 hover:border-primary/40 hover:bg-surface-container/20 transition-all cursor-pointer group"
                     >
-                      {/* Priority Strip Indicator */}
-                      {task.status === 'In Progress' && (
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />
-                      )}
+                      <Plus size={16} className="mb-1.5 text-on-surface-variant/50 group-hover:text-primary transition-colors stroke-[1.5]" />
+                      <span className="text-[11px] text-on-surface-variant/50 group-hover:text-on-surface-variant transition-colors">No tasks yet</span>
+                      <span className="text-[10px] text-primary/0 group-hover:text-primary/80 transition-colors mt-0.5 font-semibold">+ Add task</span>
+                    </div>
+                ) : (
+                    colTasks.map((task) => {
+                      // Due date auto-color: parse date and compare to today
+                      const dueDateStr = task.dueDate;
+                      const isOverdue = (() => {
+                        if (!dueDateStr || dueDateStr === 'Completed' || dueDateStr.startsWith('Completed')) return false;
+                        if (dueDateStr === 'Tomorrow') return false;
+                        const d = new Date(dueDateStr);
+                        return !isNaN(d.getTime()) && d < new Date();
+                      })();
+                      const isDueSoon = (() => {
+                        if (!dueDateStr || dueDateStr === 'Completed' || dueDateStr.startsWith('Completed')) return false;
+                        if (dueDateStr === 'Tomorrow') return true;
+                        const d = new Date(dueDateStr);
+                        const diff = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+                        return !isNaN(diff) && diff >= 0 && diff <= 3;
+                      })();
 
-                      <div>
-                        {/* Header Details */}
-                        <div className="flex justify-between items-center mb-2">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
-                            task.priority === 'High' 
-                              ? 'bg-error-container/20 text-error border border-error/20' 
-                              : task.priority === 'Medium'
-                              ? 'bg-tertiary-container/20 text-tertiary border border-tertiary/20'
-                              : 'bg-surface-container-highest text-on-surface-variant border border-outline-variant/30'
-                          }`}>
-                            {task.priority}
-                          </span>
-                          <span className="text-[10px] text-on-surface-variant font-mono font-medium">{task.id}</span>
-                        </div>
+                      const dueDateClass = isOverdue
+                        ? 'text-error font-bold'
+                        : isDueSoon
+                        ? 'text-tertiary font-semibold'
+                        : 'text-on-surface-variant';
 
-                        {/* Title & Description */}
-                        <h4 
-                          onClick={() => onSelectTask(task.id)}
-                          className="text-xs font-bold text-on-surface hover:text-primary transition-colors leading-snug truncate"
+                      // Priority left-border color
+                      const priorityBorderClass =
+                        task.priority === 'High'
+                          ? 'border-l-error'
+                          : task.priority === 'Medium'
+                          ? 'border-l-tertiary'
+                          : 'border-l-secondary';
+
+                      return (
+                        <motion.div
+                          layoutId={`card-${task.id}`}
+                          key={task.id}
+                          className={`bg-surface-container border border-outline-variant border-l-4 ${priorityBorderClass} hover:border-primary/50 p-4 rounded-xl transition-colors cursor-pointer relative overflow-hidden group flex flex-col justify-between`}
+                          style={{ height: '170px' }}
+                          whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}
+                          transition={{ duration: 0.15 }}
                         >
-                          {task.title}
-                        </h4>
-                        
-                        <p className="text-[10px] text-on-surface-variant line-clamp-2 leading-relaxed mt-1 select-text">
-                          {task.description}
-                        </p>
-                      </div>
-
-                      {/* Footer Actions / Controls */}
-                      <div className="mt-3 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-on-surface-variant font-sans">
-                          {task.commentsCount > 0 && (
-                            <div className="flex items-center gap-0.5 text-[10px]" title="Comments">
-                              <MessageSquare size={11} />
-                              <span>{task.commentsCount}</span>
+                          <div>
+                            {/* Header Details */}
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/70 font-mono">
+                                {task.priority} Priority
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant font-mono font-medium">{task.id}</span>
                             </div>
-                          )}
-                          {task.attachmentsCount > 0 && (
-                            <div className="flex items-center gap-0.5 text-[10px]" title="Attachments">
-                              <Paperclip size={11} />
-                              <span>{task.attachmentsCount}</span>
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Assignee & Controls */}
-                        <div className="flex items-center gap-2">
-                          {col !== 'Done' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); completeTask(task.id); }}
-                              title="Mark Complete"
-                              className="p-1.5 bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 rounded-lg text-secondary transition-colors cursor-pointer"
+                            {/* Title & Description */}
+                            <h4
+                              onClick={() => onSelectTask(task.id)}
+                              className="text-xs font-bold text-on-surface hover:text-primary transition-colors leading-snug truncate"
                             >
-                              <Check size={11} />
-                            </button>
-                          )}
+                              {task.title}
+                            </h4>
 
-                          {/* Control arrows to move tasks easily without heavy drag drop client dependencies */}
-                          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                            {col !== 'Backlog' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); moveTask(task.id, 'backward'); }}
-                                title="Move Left"
-                                className="p-1 hover:bg-surface-container-highest rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
-                              >
-                                <ArrowLeft size={10} />
-                              </button>
-                            )}
-                            {col !== 'Done' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); moveTask(task.id, 'forward'); }}
-                                title="Move Right"
-                                className="p-1 hover:bg-surface-container-highest rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
-                              >
-                                <ArrowRight size={10} />
-                              </button>
-                            )}
+                            <p className="text-[10px] text-on-surface-variant line-clamp-2 leading-relaxed mt-1 select-text">
+                              {task.description}
+                            </p>
                           </div>
 
-                          <div className="w-6 h-6 rounded-full border border-outline-variant/50 overflow-hidden flex-shrink-0" title={`Assignee: ${task.assignee.name}`}>
-                            <img src={task.assignee.avatar} alt={task.assignee.name} className="w-full h-full object-cover" />
-                          </div>
-                        </div>
-                      </div>
+                          {/* Footer Actions / Controls */}
+                          <div className="mt-3 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-on-surface-variant">
+                              {task.commentsCount > 0 && (
+                                <div className="flex items-center gap-0.5 text-[10px]" title="Comments">
+                                  <MessageSquare size={11} />
+                                  <span>{task.commentsCount}</span>
+                                </div>
+                              )}
+                              {task.attachmentsCount > 0 && (
+                                <div className="flex items-center gap-0.5 text-[10px]" title="Attachments">
+                                  <Paperclip size={11} />
+                                  <span>{task.attachmentsCount}</span>
+                                </div>
+                              )}
+                              {/* Due date with auto-color */}
+                              <div className={`flex items-center gap-0.5 text-[10px] ${dueDateClass}`}>
+                                <Calendar size={10} />
+                                <span className="font-mono">{task.dueDate}</span>
+                              </div>
+                            </div>
 
-                    </motion.div>
-                  ))
-                )}
+                            {/* Assignee & Controls */}
+                            <div className="flex items-center gap-2">
+                              {col !== 'Done' && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); completeTask(task.id); }}
+                                  title="Mark Complete"
+                                  className="p-1.5 bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 rounded-lg text-secondary transition-colors cursor-pointer"
+                                >
+                                  <Check size={11} />
+                                </button>
+                              )}
+
+                              {/* Control arrows to move tasks without drag-drop dependencies */}
+                              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                                {col !== 'Backlog' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveTask(task.id, 'backward'); }}
+                                    title="Move Left"
+                                    className="p-1 hover:bg-surface-container-highest rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
+                                  >
+                                    <ArrowLeft size={10} />
+                                  </button>
+                                )}
+                                {col !== 'Done' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveTask(task.id, 'forward'); }}
+                                    title="Move Right"
+                                    className="p-1 hover:bg-surface-container-highest rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
+                                  >
+                                    <ArrowRight size={10} />
+                                  </button>
+                                )}
+                              </div>
+
+                              <div
+                                className="w-6 h-6 rounded-full border border-outline-variant/50 overflow-hidden flex-shrink-0"
+                                title={`Assignee: ${task.assignee.name}`}
+                              >
+                                <img
+                                  src={resolveAvatar(task.assignee)}
+                                  alt={task.assignee.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                        </motion.div>
+                      );
+                    })
+                 )}
               </div>
 
             </div>

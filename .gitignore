@@ -4,7 +4,9 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.local
+.env.*.local
 !.env.example
 
 # Local database
@@ -14,3 +16,18 @@ db.json
 # Build and IDE files
 .tsbuildinfo
 .eslintcache
+.vscode/
+.idea/
+
+# Internal documentation & temp/scratch files
+Readme-wahaj.md
+PROJECT_BRAIN.md
+roadmap.md
+metadata.json
+
+# Graphify tool outputs
+graphify-out/
+graphify.html
+graphify.json
+run.bat
+graphify.py
