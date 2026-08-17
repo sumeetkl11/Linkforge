@@ -101,7 +101,7 @@ export default function Chat({ currentUser, onlineUserIds = new Set() }: ChatPro
     };
 
     loadInitialData();
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -172,7 +172,7 @@ export default function Chat({ currentUser, onlineUserIds = new Set() }: ChatPro
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('dm:cleared', handleDMCleared);
     };
-  }, [activeChatId, activeChatType, currentUser]);
+  }, [activeChatId, activeChatType, currentUser?.id]);
 
   // Handle Send Message
   const handleSendMessage = () => {
