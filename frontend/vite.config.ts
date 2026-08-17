@@ -14,6 +14,18 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-motion': ['motion/react'],
+            'vendor-socket': ['socket.io-client'],
+            'vendor-lucide': ['lucide-react'],
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api': {
