@@ -35,6 +35,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
   // Auto-clear Toast
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function App() {
     setSelectedTaskId(null);
     setTasks([]);
     setActivities([]);
+    setOnlineUserIds(new Set());
     setIsLoadingUser(false);
     if (message) {
       setToastMessage(message);
@@ -202,12 +204,17 @@ export default function App() {
       }
     };
 
+    const handlePresenceUpdate = (payload: { onlineIds: string[] }) => {
+      setOnlineUserIds(new Set(payload.onlineIds));
+    };
+
     socket.on('connect', handleConnect);
     socket.on('task:created', handleTaskCreated);
     socket.on('task:updated', handleTaskUpdated);
     socket.on('task:deleted', handleTaskDeleted);
     socket.on('auth:banned', handleAuthBanned);
     socket.on('message:received', handleMessageReceived);
+    socket.on('presence:update', handlePresenceUpdate);
 
     // If already connected (e.g. fast re-render), emit join immediately
     if (socket.connected) handleConnect();
@@ -219,6 +226,7 @@ export default function App() {
       socket.off('task:deleted', handleTaskDeleted);
       socket.off('auth:banned', handleAuthBanned);
       socket.off('message:received', handleMessageReceived);
+      socket.off('presence:update', handlePresenceUpdate);
     };
   }, [isLoggedIn, currentUser, currentScreen, channelNames]);
 
@@ -356,7 +364,7 @@ export default function App() {
             )}
 
             {currentScreen === 'Chat' && (
-              <Chat currentUser={currentUser} />
+              <Chat currentUser={currentUser} onlineUserIds={onlineUserIds} />
             )}
 
             {currentScreen === 'TaskBoard' && (
@@ -372,6 +380,7 @@ export default function App() {
               <TeamDirectory 
                 searchVal={searchVal}
                 currentUser={currentUser}
+                onlineUserIds={onlineUserIds}
               />
             )}
 

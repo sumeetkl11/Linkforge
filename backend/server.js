@@ -25,7 +25,32 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-app.use(cors());
+const allowedOrigins = [
+  'https://linkforge-mauve.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:5175'
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const envFrontend = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, '') : null;
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/localhost:\d+$/.test(origin) ||
+      origin.endsWith('.vercel.app') ||
+      (envFrontend && origin === envFrontend);
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 
@@ -33,9 +58,8 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
+    ...corsOptions,
+    methods: ['GET', 'POST']
   }
 });
 
@@ -1088,13 +1112,84 @@ app.post('/api/messages', async (req, res) => {
     // Real-time broadcast
     if (io) {
       if (receiverId) {
+        // DM: emit only to sender and receiver rooms
         io.to(senderId).to(receiverId).emit('message:received', realtimeMessage);
+      } else if (channelId) {
+        // Channel: emit only to channel room (users who joined via room:join)
+        io.to(channelId).emit('message:received', realtimeMessage);
       } else {
         io.emit('message:received', realtimeMessage);
       }
     }
     pushDashboardStats();
     res.json(realtimeMessage);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE a single message (own message or admin)
+app.delete('/api/messages/:id', async (req, res) => {
+  const id = req.params.id;
+  const { requesterId } = req.query;
+  try {
+    // Verify the message exists and the requester owns it (or is admin)
+    const existing = await pool.query('SELECT user_data FROM messages WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    const owner = existing.rows[0].user_data?.id || existing.rows[0].user_data?.['id'];
+    if (requesterId && owner && owner !== requesterId) {
+      // Check if requester is admin
+      const adminCheck = await pool.query("SELECT role FROM users WHERE id = $1", [requesterId]);
+      if (!adminCheck.rows[0] || adminCheck.rows[0].role !== 'Admin') {
+        return res.status(403).json({ error: 'You can only delete your own messages' });
+      }
+    }
+    await pool.query('DELETE FROM messages WHERE id = $1', [id]);
+    if (io) {
+      io.emit('message:deleted', { id });
+    }
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE a channel (admin only) — cascades to its messages via FK
+app.delete('/api/channels/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await pool.query('DELETE FROM channels WHERE id = $1 RETURNING id', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+    if (io) {
+      io.emit('channel:deleted', { id });
+    }
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE all DM messages between two users
+app.delete('/api/dm', async (req, res) => {
+  const { userId1, userId2 } = req.body;
+  if (!userId1 || !userId2) {
+    return res.status(400).json({ error: 'userId1 and userId2 are required' });
+  }
+  try {
+    await pool.query(
+      `DELETE FROM messages
+       WHERE (user_data->>'id' = $1 AND receiver_id = $2)
+          OR (user_data->>'id' = $2 AND receiver_id = $1)`,
+      [userId1, userId2]
+    );
+    if (io) {
+      io.to(userId1).to(userId2).emit('dm:cleared', { userId1, userId2 });
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1362,6 +1457,14 @@ async function startServer() {
     }
   }
 
+  // In-memory presence: userId → Set<socketId>
+  const onlinePresence = new Map();
+
+  function broadcastPresence() {
+    const onlineIds = Array.from(onlinePresence.keys());
+    io.emit('presence:update', { onlineIds });
+  }
+
   // Socket.io room joins & presence
   io.on('connection', (socket) => {
     console.log(`[Socket.io] 🟢 Client connected: ${socket.id}`);
@@ -1375,11 +1478,28 @@ async function startServer() {
     
     socket.on('user:join', (userId) => {
       socket.join(userId);
+      // Register presence
+      if (!onlinePresence.has(userId)) {
+        onlinePresence.set(userId, new Set());
+      }
+      onlinePresence.get(userId).add(socket.id);
+      // Tag socket so we can clean up on disconnect
+      socket._presenceUserId = userId;
       console.log(`[Socket.io] 👤 ${socket.id} registered for user: ${userId}`);
+      broadcastPresence();
     });
     
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.io] 🔴 Client disconnected: ${socket.id} (${reason})`);
+      const userId = socket._presenceUserId;
+      if (userId && onlinePresence.has(userId)) {
+        const sockets = onlinePresence.get(userId);
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          onlinePresence.delete(userId);
+        }
+        broadcastPresence();
+      }
     });
   });
 

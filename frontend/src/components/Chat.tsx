@@ -5,19 +5,20 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle, Copy, Check } from 'lucide-react';
+import { Hash, Plus, Send, Smile, Paperclip, Bold, Italic, Code, Link, List, Download, FileText, AtSign, Users, Sparkles, MessageCircle, Copy, Check, Trash2, AlertTriangle } from 'lucide-react';
 import { Channel, Message, User } from '../types';
 import { CHANNELS, INITIAL_MESSAGES, USERS } from '../data';
-import { fetchMessages, sendMessage, fetchChannels } from '../api';
+import { fetchMessages, sendMessage, fetchChannels, deleteMessage, deleteChannel, clearDMConversation } from '../api';
 import { apiUrl } from '../config';
 
 import { socket } from '../utils/socket';
 
 interface ChatProps {
   currentUser: User | null;
+  onlineUserIds?: Set<string>;
 }
 
-export default function Chat({ currentUser }: ChatProps) {
+export default function Chat({ currentUser, onlineUserIds = new Set() }: ChatProps) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [colleagues, setColleagues] = useState<User[]>([]);
   const [activeChatType, setActiveChatType] = useState<'channel' | 'dm'>('channel');
@@ -31,6 +32,8 @@ export default function Chat({ currentUser }: ChatProps) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [confirmDeleteChannelId, setConfirmDeleteChannelId] = useState<string | null>(null);
+  const [confirmClearDM, setConfirmClearDM] = useState(false);
   
   // Active channel/DM specific messages state helper
   const [channelMessages, setChannelMessages] = useState<Record<string, Message[]>>({});
@@ -38,7 +41,9 @@ export default function Chat({ currentUser }: ChatProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Global socket listener for workspace channel creations
+  const isAdmin = currentUser?.role === 'Admin';
+
+  // Global socket listener for workspace channel creations + deletions
   useEffect(() => {
     const handleChannelCreated = (newChan: Channel) => {
       setChannels(prev => {
@@ -47,10 +52,21 @@ export default function Chat({ currentUser }: ChatProps) {
       });
     };
 
+    const handleChannelDeleted = (payload: { id: string }) => {
+      setChannels(prev => prev.filter(c => c.id !== payload.id));
+      // If we're currently viewing this channel, switch away
+      setActiveChatId(current => {
+        if (current === payload.id) return '';
+        return current;
+      });
+    };
+
     socket.on('channel_created', handleChannelCreated);
+    socket.on('channel:deleted', handleChannelDeleted);
 
     return () => {
       socket.off('channel_created', handleChannelCreated);
+      socket.off('channel:deleted', handleChannelDeleted);
     };
   }, []);
 
@@ -131,10 +147,30 @@ export default function Chat({ currentUser }: ChatProps) {
       });
     };
 
+    const handleMessageDeleted = (payload: { id: string }) => {
+      setChannelMessages(prev => {
+        const updated: Record<string, Message[]> = {};
+        for (const [chatId, msgs] of Object.entries(prev)) {
+          updated[chatId] = msgs.filter(m => m.id !== payload.id);
+        }
+        return updated;
+      });
+    };
+
+    const handleDMCleared = (payload: { userId1: string; userId2: string }) => {
+      if (!currentUser) return;
+      const otherId = payload.userId1 === currentUser.id ? payload.userId2 : payload.userId1;
+      setChannelMessages(prev => ({ ...prev, [otherId]: [] }));
+    };
+
     socket.on('message:received', handleMessage);
+    socket.on('message:deleted', handleMessageDeleted);
+    socket.on('dm:cleared', handleDMCleared);
 
     return () => {
       socket.off('message:received', handleMessage);
+      socket.off('message:deleted', handleMessageDeleted);
+      socket.off('dm:cleared', handleDMCleared);
     };
   }, [activeChatId, activeChatType, currentUser]);
 
@@ -256,6 +292,43 @@ export default function Chat({ currentUser }: ChatProps) {
     });
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!currentUser) return;
+    try {
+      await deleteMessage(messageId, currentUser.id);
+      // Optimistic local removal — socket event will sync other clients
+      setChannelMessages(prev => {
+        const updated: Record<string, Message[]> = {};
+        for (const [chatId, msgs] of Object.entries(prev)) {
+          updated[chatId] = msgs.filter(m => m.id !== messageId);
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  };
+
+  const handleDeleteChannel = async (channelId: string) => {
+    try {
+      await deleteChannel(channelId);
+      setConfirmDeleteChannelId(null);
+    } catch (err) {
+      console.error('Failed to delete channel:', err);
+    }
+  };
+
+  const handleClearDM = async () => {
+    if (!currentUser || activeChatType !== 'dm' || !activeChatId) return;
+    try {
+      await clearDMConversation(currentUser.id, activeChatId);
+      setChannelMessages(prev => ({ ...prev, [activeChatId]: [] }));
+      setConfirmClearDM(false);
+    } catch (err) {
+      console.error('Failed to clear DM:', err);
+    }
+  };
+
   const handleSwitchChat = (type: 'channel' | 'dm', chatId: string) => {
     setActiveChatType(type);
     setActiveChatId(chatId);
@@ -315,18 +388,29 @@ export default function Chat({ currentUser }: ChatProps) {
                 channels.map((chan) => {
                   const isActive = activeChatType === 'channel' && activeChatId === chan.id;
                   return (
-                    <button
-                      key={chan.id}
-                      onClick={() => handleSwitchChat('channel', chan.id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left text-xs cursor-pointer ${
-                        isActive
-                          ? 'bg-surface-container-highest text-primary font-bold border-l-2 border-primary'
-                          : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-on-surface'
-                      }`}
-                    >
-                      <Hash size={14} className="text-outline-variant" />
-                      <span>{chan.name}</span>
-                    </button>
+                    <div key={chan.id} className="relative group/chan">
+                      <button
+                        onClick={() => handleSwitchChat('channel', chan.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left text-xs cursor-pointer ${
+                          isActive
+                            ? 'bg-surface-container-highest text-primary font-bold border-l-2 border-primary'
+                            : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-on-surface'
+                        }`}
+                      >
+                        <Hash size={14} className="text-outline-variant" />
+                        <span className="flex-1 truncate">{chan.name}</span>
+                      </button>
+                      {/* Channel delete — admin only, shows on hover */}
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteChannelId(chan.id); }}
+                          title="Delete channel"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/chan:opacity-100 p-1 rounded hover:bg-red-500/20 text-outline-variant hover:text-red-400 transition-all cursor-pointer"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
                   );
                 })
               )}
@@ -354,6 +438,7 @@ export default function Chat({ currentUser }: ChatProps) {
               ) : (
                 colleagues.map((user) => {
                   const isActive = activeChatType === 'dm' && activeChatId === user.id;
+                  const isOnline = onlineUserIds.has(user.id);
                   return (
                     <button
                       key={user.id}
@@ -367,7 +452,7 @@ export default function Chat({ currentUser }: ChatProps) {
                       <div className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-outline-variant/30">
                         <img src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.name}`} alt={user.name} className="w-full h-full object-cover" />
                         <span className={`absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full border border-surface-container-low ${
-                          user.status === 'Online' ? 'bg-secondary' : user.status === 'Away' ? 'bg-tertiary' : 'bg-outline-variant'
+                          isOnline ? 'bg-secondary' : 'bg-outline-variant'
                         }`}></span>
                       </div>
                       <span className="truncate">{user.username || user.name.toLowerCase().replace(' ', '_')}</span>
@@ -414,7 +499,17 @@ export default function Chat({ currentUser }: ChatProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* DM clear conversation button */}
+            {activeChatType === 'dm' && activeChatId && (
+              <button
+                onClick={() => setConfirmClearDM(true)}
+                title="Clear conversation"
+                className="p-2 text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
             <button className="p-2 text-on-surface-variant hover:text-on-surface rounded-lg cursor-pointer">
               <Users size={16} />
             </button>
@@ -456,67 +551,82 @@ export default function Chat({ currentUser }: ChatProps) {
                 <div className="flex-grow border-t border-outline-variant/30"></div>
               </div>
 
-              {activeStream.map((message) => (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  key={message.id} 
-                  className="flex gap-4 group hover:bg-surface-container/10 p-2 -mx-2 rounded-xl transition-all"
-                >
-                  <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant/50">
-                    <img src={message.user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${message.user.name}`} alt={message.user.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-primary hover:underline cursor-pointer">{message.user.name}</span>
-                      <span className="text-[10px] text-outline-variant font-mono">{message.timestamp}</span>
+              {activeStream.map((message) => {
+                const isOwnMessage = message.user.id === currentUser?.id;
+                const canDelete = isOwnMessage || isAdmin;
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={message.id} 
+                    className="flex gap-4 group hover:bg-surface-container/10 p-2 -mx-2 rounded-xl transition-all relative"
+                  >
+                    <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant/50">
+                      <img src={message.user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${message.user.name}`} alt={message.user.name} className="w-full h-full object-cover" />
                     </div>
-                    
-                    <p className="mt-1 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
-
-                    {/* Styled Code Snippet blocks */}
-                    {message.codeSnippet && (
-                      <div className="mt-3 p-4 bg-surface-container-lowest border border-outline-variant rounded-xl font-mono text-xs text-on-surface-variant overflow-x-auto select-all">
-                        <pre className="whitespace-pre"><code>{message.codeSnippet}</code></pre>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-primary hover:underline cursor-pointer">{message.user.name}</span>
+                        <span className="text-[10px] text-outline-variant font-mono">{message.timestamp}</span>
                       </div>
-                    )}
+                      
+                      <p className="mt-1 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
 
-                    {/* Design File Attachment components */}
-                    {message.fileAttachment && (
-                      <div className="mt-3 p-3 bg-surface-container-low border border-outline-variant rounded-xl w-fit flex items-center gap-4 hover:border-primary/40 transition-colors">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                          <FileText size={20} />
+                      {/* Styled Code Snippet blocks */}
+                      {message.codeSnippet && (
+                        <div className="mt-3 p-4 bg-surface-container-lowest border border-outline-variant rounded-xl font-mono text-xs text-on-surface-variant overflow-x-auto select-all">
+                          <pre className="whitespace-pre"><code>{message.codeSnippet}</code></pre>
                         </div>
-                        <div>
-                          <div className="font-bold text-xs text-on-surface">{message.fileAttachment.name}</div>
-                          <div className="text-[10px] text-on-surface-variant font-mono uppercase tracking-tight mt-0.5">{message.fileAttachment.size} • {message.fileAttachment.type}</div>
-                        </div>
-                        <button 
-                          title="Download Attachment"
-                          className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-all cursor-pointer"
-                        >
-                          <Download size={14} />
-                        </button>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Emoji reactions */}
-                    {message.reactions && message.reactions.length > 0 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {message.reactions.map((reaction, i) => (
-                          <span 
-                            key={i}
-                            className="px-2 py-0.5 bg-surface-container border border-outline-variant rounded-full text-[11px] flex items-center gap-1 cursor-pointer hover:border-primary transition-colors font-sans"
+                      {/* Design File Attachment components */}
+                      {message.fileAttachment && (
+                        <div className="mt-3 p-3 bg-surface-container-low border border-outline-variant rounded-xl w-fit flex items-center gap-4 hover:border-primary/40 transition-colors">
+                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-on-surface">{message.fileAttachment.name}</div>
+                            <div className="text-[10px] text-on-surface-variant font-mono uppercase tracking-tight mt-0.5">{message.fileAttachment.size} • {message.fileAttachment.type}</div>
+                          </div>
+                          <button 
+                            title="Download Attachment"
+                            className="p-1.5 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-on-surface transition-all cursor-pointer"
                           >
-                            <span>{reaction.emoji}</span>
-                            <span className="text-on-surface-variant font-bold text-[10px]">{reaction.count}</span>
-                          </span>
-                        ))}
-                      </div>
+                            <Download size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Emoji reactions */}
+                      {message.reactions && message.reactions.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {message.reactions.map((reaction, i) => (
+                            <span 
+                              key={i}
+                              className="px-2 py-0.5 bg-surface-container border border-outline-variant rounded-full text-[11px] flex items-center gap-1 cursor-pointer hover:border-primary transition-colors font-sans"
+                            >
+                              <span>{reaction.emoji}</span>
+                              <span className="text-on-surface-variant font-bold text-[10px]">{reaction.count}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delete message button — own messages or admin, on hover */}
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteMessage(message.id)}
+                        title="Delete message"
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/15 text-outline-variant hover:text-red-400 transition-all cursor-pointer"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     )}
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
               <div ref={chatEndRef} />
             </>
           )}
@@ -621,10 +731,10 @@ export default function Chat({ currentUser }: ChatProps) {
           {/* Active Members */}
           <div>
             <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-outline">
-              Active — {colleagues.filter(u => u.status === 'Online').length + (currentUser?.status === 'Online' ? 1 : 0)}
+              Active — {colleagues.filter(u => onlineUserIds.has(u.id)).length + (currentUser && onlineUserIds.has(currentUser.id) ? 1 : 0)}
             </div>
             <div className="space-y-1 mt-2">
-              {currentUser?.status === 'Online' && (
+              {currentUser && onlineUserIds.has(currentUser.id) && (
                 <div className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-surface-container-high cursor-pointer transition-all group">
                   <div className="relative w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant/30">
                     <img src={currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.name}`} alt={currentUser.name} className="w-full h-full object-cover" />
@@ -636,7 +746,7 @@ export default function Chat({ currentUser }: ChatProps) {
                   </div>
                 </div>
               )}
-              {colleagues.filter(u => u.status === 'Online').map((user) => (
+              {colleagues.filter(u => onlineUserIds.has(u.id)).map((user) => (
                 <div
                   key={user.id}
                   onClick={() => handleSwitchChat('dm', user.id)}
@@ -658,10 +768,10 @@ export default function Chat({ currentUser }: ChatProps) {
           {/* Away / Offline Members */}
           <div>
             <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-outline">
-              Away / Offline — {colleagues.filter(u => u.status !== 'Online').length + (currentUser?.status !== 'Online' ? 1 : 0)}
+              Away / Offline — {colleagues.filter(u => !onlineUserIds.has(u.id)).length + (currentUser && !onlineUserIds.has(currentUser.id) ? 1 : 0)}
             </div>
             <div className="space-y-1 mt-2 opacity-60">
-              {currentUser && currentUser.status !== 'Online' && (
+              {currentUser && !onlineUserIds.has(currentUser.id) && (
                 <div className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-surface-container-high cursor-pointer transition-all group">
                   <div className="relative w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 grayscale border border-outline-variant/30">
                     <img src={currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.name}`} alt={currentUser.name} className="w-full h-full object-cover" />
@@ -675,7 +785,7 @@ export default function Chat({ currentUser }: ChatProps) {
                   </div>
                 </div>
               )}
-              {colleagues.filter(u => u.status !== 'Online').map((user) => (
+              {colleagues.filter(u => !onlineUserIds.has(u.id)).map((user) => (
                 <div
                   key={user.id}
                   onClick={() => handleSwitchChat('dm', user.id)}
@@ -803,6 +913,82 @@ export default function Chat({ currentUser }: ChatProps) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Delete Channel Modal */}
+      <AnimatePresence>
+        {confirmDeleteChannelId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface-container-low border border-red-500/30 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 flex-shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface font-sans">Delete Channel?</h3>
+                  <p className="text-[11px] text-on-surface-variant font-sans">This will permanently delete the channel and all its messages.</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setConfirmDeleteChannelId(null)}
+                  className="px-4 py-1.5 bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface text-xs font-semibold rounded-lg transition-all cursor-pointer font-sans"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteChannel(confirmDeleteChannelId)}
+                  className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-md active:scale-[0.98] font-sans"
+                >
+                  Delete Channel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Clear DM Modal */}
+      <AnimatePresence>
+        {confirmClearDM && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface-container-low border border-red-500/30 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 flex-shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface font-sans">Clear Conversation?</h3>
+                  <p className="text-[11px] text-on-surface-variant font-sans">All messages in this DM will be permanently deleted for both users.</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setConfirmClearDM(false)}
+                  className="px-4 py-1.5 bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface text-xs font-semibold rounded-lg transition-all cursor-pointer font-sans"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearDM}
+                  className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-md active:scale-[0.98] font-sans"
+                >
+                  Clear All Messages
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

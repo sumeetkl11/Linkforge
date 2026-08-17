@@ -123,6 +123,43 @@ export async function sendMessage(channelId: string | null, message: Message, re
   return res.json();
 }
 
+export async function deleteMessage(messageId: string, requesterId?: string): Promise<boolean> {
+  const url = requesterId
+    ? apiUrl(`/api/messages/${messageId}?requesterId=${encodeURIComponent(requesterId)}`)
+    : apiUrl(`/api/messages/${messageId}`);
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to delete message');
+  }
+  const data = await res.json();
+  return data.success;
+}
+
+export async function deleteChannel(channelId: string): Promise<boolean> {
+  const res = await fetch(apiUrl(`/api/channels/${channelId}`), { method: 'DELETE' });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to delete channel');
+  }
+  const data = await res.json();
+  return data.success;
+}
+
+export async function clearDMConversation(userId1: string, userId2: string): Promise<boolean> {
+  const res = await fetch(apiUrl('/api/dm'), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId1, userId2 }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to clear DM conversation');
+  }
+  const data = await res.json();
+  return data.success;
+}
+
 export async function fetchUsers(excludeId?: string): Promise<User[]> {
   const url = excludeId ? `/api/users?exclude=${excludeId}` : '/api/users';
   const res = await fetch(apiUrl(url));

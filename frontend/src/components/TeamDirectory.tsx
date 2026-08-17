@@ -14,9 +14,10 @@ import { banUser, deleteUser, fetchUsers, sendInviteEmail, updateUserAsAdmin } f
 interface TeamDirectoryProps {
   searchVal: string;
   currentUser: User | null;
+  onlineUserIds?: Set<string>;
 }
 
-export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryProps) {
+export default function TeamDirectory({ searchVal, currentUser, onlineUserIds = new Set() }: TeamDirectoryProps) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -345,18 +346,21 @@ export default function TeamDirectory({ searchVal, currentUser }: TeamDirectoryP
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        member.status === 'Online' 
-                          ? 'bg-secondary/10 text-secondary border border-secondary/20' 
-                          : member.status === 'Away'
-                          ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
-                          : 'bg-surface-container-highest/60 text-outline-variant border border-outline-variant/20'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          member.status === 'Online' ? 'bg-secondary' : member.status === 'Away' ? 'bg-tertiary' : 'bg-outline'
-                        }`} />
-                        <span>{member.status}</span>
-                      </span>
+                      {(() => {
+                        const isOnline = onlineUserIds.has(member.id);
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            isOnline
+                              ? 'bg-secondary/10 text-secondary border border-secondary/20'
+                              : 'bg-surface-container-highest/60 text-outline-variant border border-outline-variant/20'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              isOnline ? 'bg-secondary' : 'bg-outline'
+                            }`} />
+                            <span>{isOnline ? 'Online' : 'Offline'}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     <td className="px-6 py-4 text-on-surface font-sans font-medium">{member.role}</td>
