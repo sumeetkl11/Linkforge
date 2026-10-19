@@ -1,0 +1,169 @@
+<div align="center">
+
+<img width="80" height="80" alt="Syncforge Logo" src="https://img.shields.io/badge/%E2%9A%A1-Syncforge-a2c9ff?style=for-the-badge&labelColor=0b141c&color=a2c9ff" />
+
+# Syncforge
+
+**All-in-one team collaboration workspace**  
+Chat · Task Board · Wiki · Team Directory · Dashboard
+
+[![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react&logoColor=white&labelColor=20232a)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169e1?style=flat-square&logo=postgresql&logoColor=white)](https://neon.tech)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+
+</div>
+
+---
+
+## Overview
+
+Syncforge is a real-time team collaboration platform built as a hybrid of Slack, Notion, and Jira. It provides everything a development team needs in a single, dense, technical interface.
+
+| Feature | Description |
+|---|---|
+| 💬 **Chat** | Real-time channels + DMs, code snippet sharing, file attachments, reactions |
+| 🗂️ **Kanban Board** | Task management with priority strips, due date auto-coloring, AI task drafting |
+| 📖 **Wiki** | Shared knowledge base with a hierarchical page tree |
+| 👥 **Team Directory** | Member profiles with skill proficiency, activity stats, and status indicators |
+| 📊 **Dashboard** | Sprint velocity chart, activity feed, open tasks, and live message volume stats |
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS v4, Framer Motion |
+| Backend | Node.js, Express, Socket.io |
+| Database | PostgreSQL (hosted on [Neon](https://neon.tech)) |
+| Auth | Google OAuth 2.0, GitHub OAuth, Email/Password |
+| AI | Gemini API (AI-assisted task drafting) |
+| Icons | Lucide React |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- A [Neon](https://neon.tech) PostgreSQL database (free tier works)
+- Google OAuth credentials (optional — for OAuth login)
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/sumeetkl11/Linkforge.git
+cd Linkforge
+
+# Install backend dependencies
+cd backend && npm install
+
+# Install frontend dependencies
+cd ../frontend && npm install
+```
+
+### 2. Configure environment
+
+**`backend/.env`**
+```env
+DATABASE_URL=postgresql://your-neon-connection-string
+PORT=5005
+JWT_SECRET=your-jwt-secret
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:5005/auth/google/callback
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+**`frontend/.env`**
+```env
+VITE_API_URL=http://localhost:5005
+```
+
+### 3. Seed the database
+
+```bash
+cd backend
+node seed-neon.js
+```
+
+This creates all required tables and seeds 8 fictional team members, 9 tasks across all workflow stages, 12 messages across 3 channels, and 6 activity feed entries.
+
+### 4. Run locally
+
+Open two terminals:
+
+```bash
+# Terminal 1 — Backend
+cd backend
+npm run dev
+# → http://localhost:5005
+```
+
+```bash
+# Terminal 2 — Frontend
+cd frontend
+npm run dev
+# → http://localhost:5173
+```
+
+Navigate to `http://localhost:5173` and sign in or create an account.
+
+## Project Structure
+
+```
+Linkforge/
+├── backend/
+│   ├── server.js          # Express + Socket.io entry point
+│   ├── seed-neon.js       # Database schema + seed data
+│   └── .env               # Backend environment variables
+├── frontend/
+│   ├── src/
+│   │   ├── components/    # All UI components
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Chat.tsx
+│   │   │   ├── TaskBoard.tsx
+│   │   │   ├── Wiki.tsx
+│   │   │   ├── TeamDirectory.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   └── Header.tsx
+│   │   ├── utils/
+│   │   │   ├── avatar.ts  # Deterministic colored-initials avatar generator
+│   │   │   └── socket.ts  # Socket.io client instance
+│   │   ├── api.ts         # All REST API calls
+│   │   ├── types.ts       # Shared TypeScript types
+│   │   ├── data.ts        # Static seed/fallback data
+│   │   └── App.tsx        # Root component + state orchestration
+│   ├── index.css          # Tailwind @theme tokens + global styles
+│   └── .env               # Frontend environment variables
+└── README.md
+```
+
+## Key Design Decisions
+
+- **Dense/Technical aesthetic** — dark atmospheric palette (`#0b141c` base), JetBrains Mono for metrics and code, Inter for body copy.
+- **Icon-rail sidebar** — 64px wide with animated hover tooltips, freeing maximum horizontal space for content.
+- **Optimistic UI** — chat messages appear instantly, synced to the database in the background.
+- **Socket.io** for real-time message delivery, user presence, and collaborative updates.
+- **Deterministic avatars** — `resolveAvatar()` generates colored-initials SVGs when no photo is available; same name always gets the same color.
+
+## Contributing
+
+Pull requests are welcome. For major changes, open an issue first to discuss what you'd like to change.
+
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m 'feat: add my feature'`
+4. Push the branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+  <sub>Built with ⚡ by Sumeet</sub>
+</div>
